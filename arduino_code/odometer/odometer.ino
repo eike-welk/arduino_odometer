@@ -31,9 +31,9 @@ byte cmdReg = REG_NONE;
 // The reader objects for the encoders.
 Encoder enc_1(ENC_1_PIN_1, ENC_1_PIN_2);
 Encoder enc_2(ENC_2_PIN_1, ENC_2_PIN_2);
-// The counters
-//long counter_1 = 0;
-//long counter_2 = 0;
+// The temporary counters
+long temp_counter_1 = 0;
+long temp_counter_2 = 0;
 
 // --- Startup -----------------------------------------------------------------
 // Function that is called once at startup.
@@ -75,6 +75,10 @@ void receiveEvent(int _) {
         cmdReg = Wire.read();
         Serial.print("Register: ");
         Serial.println(cmdReg, HEX);
+ 
+        // Also read the counters because we can't read them in the `requestEvent` function.
+        temp_counter_1 = enc_1.read();
+        temp_counter_2 = enc_2.read();
         break;
 
       // Command: Reset the counters to a specified value.
@@ -125,18 +129,20 @@ void requestEvent() {
 
     // Command: Send the counter values
     case REG_COUNT:
-      Serial.print("Send counter values. 1: ");
-      Serial.println(enc_1.read(), DEC);
+      //Serial.print("Send counter values. 1: ");
+      //Serial.println(enc_1.read(), DEC);
       byte buf[4]; // long is 4 bytes
-      *(long *)buf = enc_1.read();
+      //*(long *)buf = enc_1.read();
+      *(long *)buf = temp_counter_1;
       Wire.write(buf[3]);
       Wire.write(buf[2]);
       Wire.write(buf[1]);
       Wire.write(buf[0]);
  
-      Serial.print(", 2: ");
-      Serial.println(enc_2.read(), DEC);
-      *(long *)buf = enc_2.read();
+      //Serial.print(", 2: ");
+      //Serial.println(enc_2.read(), DEC);
+      //*(long *)buf = enc_2.read();
+      *(long *)buf = temp_counter_2;
       Wire.write(buf[3]);
       Wire.write(buf[2]);
       Wire.write(buf[1]);
