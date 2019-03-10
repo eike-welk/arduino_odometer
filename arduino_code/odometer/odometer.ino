@@ -25,15 +25,26 @@ byte const REG_RESET = 0x0C;
 // The counters, readable, 2 long
 byte const REG_COUNT = 0x10;
 
+// --- Constants for low frequency activity LED -------------------------------
+unsigned int const BLINK_MS = 500;
+unsigned long const DELAY_MS = 10;
+unsigned int const LOOP_COUNTER_START = BLINK_MS / DELAY_MS;
+
 // --- Global Variables -------------------------------------------------------
 // Selector for the internal registers.
 byte cmdReg = REG_NONE;
 // The reader objects for the encoders.
 Encoder enc_1(ENC_1_PIN_1, ENC_1_PIN_2);
 Encoder enc_2(ENC_2_PIN_1, ENC_2_PIN_2);
-// The temporary counters
+// Temporary counters for sending on I2C-Bus.
+// `Encoder::read` can't be called inside `requestEvent`.
 long temp_counter_1 = 0;
 long temp_counter_2 = 0;
+// Low frequency activity LED: state and counter.
+bool led_state = LOW;
+unsigned int loop_counter = LOOP_COUNTER_START;
+long old_counter_1 = 0;
+long old_counter_2 = 0;
 
 // --- Startup -----------------------------------------------------------------
 // Function that is called once at startup.
@@ -54,14 +65,35 @@ void setup() {
 // --- Run --------------------------------------------------------------------
 // Function that is called forever in a loop.
 void loop() {
-  // Increment counter and blink the led.
-//  counter_1 += 1;
-//  counter_2 += 2;
-//  digitalWrite(LED_BUILTIN, counter_1 & 0x01);
-
+  // Read the encoders because they have only one interrupt pin.
+  // TODO: Is this necessary?
   enc_1.read();
   enc_2.read();
-  delay(10);
+ 
+  // Decrement counter for low frequency LED.
+  -- loop_counter;
+  if (loop_counter == 0) {
+    loop_counter = LOOP_COUNTER_START;
+ 
+    // Blink the LED, if one of the counter has changed.
+    long counter_1, counter_2;
+    counter_1 = enc_1.read();
+    counter_2 = enc_2.read();
+    if (  (counter_1 != old_counter_1)
+       or (counter_2 != old_counter_2)
+       ) {
+        old_counter_1 = counter_1;
+        old_counter_2 = counter_2;
+        led_state = !led_state;
+        digitalWrite(LED_BUILTIN, led_state);
+        Serial.print("Blink led, counters 1: ");
+        Serial.print(counter_1, DEC);
+        Serial.print(" 2: ");
+        Serial.println(counter_2, DEC);
+    }
+  }
+ 
+  delay(DELAY_MS);
 }
 
 // Function that executes whenever data is received from master.
