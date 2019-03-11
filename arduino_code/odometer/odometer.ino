@@ -1,11 +1,19 @@
+// ============================================================================
+//              I2C Quadrature Encoder for Arduino Nano
+// ============================================================================
 
+// This program is an I2C device, that counts pulses from 2 quadrature encoders.
 
 #include <Encoder.h>
 #include <Wire.h>
 
 // --- I2C Constants ----------------------------------------------------------
 // I2C Pins on Arduino Nano:  A4 (SDA) and A5 (SCL)
+// Base address
 byte const I2C_ADDR_BASE = 0x28;
+// Lowest address bits can be chosen with jumpers
+byte const I2C_ADDR_PIN_1 = 11;
+byte const I2C_ADDR_PIN_2 = 12;
 
 // --- Quadrature Encoder Constants -------------------------------------------
 // Interrupt capable pins on Arduino Nano: D2, D3
@@ -49,17 +57,31 @@ long old_counter_2 = 0;
 // --- Startup -----------------------------------------------------------------
 // Function that is called once at startup.
 void setup() {
-  Wire.begin(I2C_ADDR_BASE);         // join i2c bus as slave
-  Wire.onReceive(receiveEvent); // register event
-  Wire.onRequest(requestEvent); // register event
-  // Switch the pullup resistors off for the I2C pins
-  digitalWrite(SDA, LOW);
-  digitalWrite(SCL, LOW);
+    // Init I2C -----------------------
+    // Compute I2C address, respecting address jumpers.
+    pinMode(I2C_ADDR_PIN_1, INPUT_PULLUP);
+    pinMode(I2C_ADDR_PIN_2, INPUT_PULLUP);
+    byte i2c_address = I2C_ADDR_BASE;
+    if (digitalRead(I2C_ADDR_PIN_1) == LOW) {
+        i2c_address += 1;
+    }
+    if (digitalRead(I2C_ADDR_PIN_2) == LOW) {
+        i2c_address += 2;
+    }
+    // Init I2C subsystem
+    Wire.begin(i2c_address);         // join i2c bus as slave
+    Wire.onReceive(receiveEvent); // register event
+    Wire.onRequest(requestEvent); // register event
+    // Switch the pullup resistors off for the I2C pins.
+    digitalWrite(SDA, LOW);
+    digitalWrite(SCL, LOW);
 
-  pinMode(LED_BUILTIN, OUTPUT);
+    // Init activity LED --------------
+    pinMode(LED_BUILTIN, OUTPUT);
 
-  Serial.begin(9600);           // start serial for output
-  Serial.println("I2C Test");
+    // start serial for output
+    Serial.begin(9600);
+    Serial.println("I2C Test");
 }
 
 // --- Run --------------------------------------------------------------------
