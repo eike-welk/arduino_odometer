@@ -22,6 +22,9 @@ byte const ENC_1_PIN_1 = 2;
 byte const ENC_1_PIN_2 = 4;
 byte const ENC_2_PIN_1 = 3;
 byte const ENC_2_PIN_2 = 5;
+// Pins for encoder direction jumpers.
+byte const ENC_1_DIRECTION_PIN = 6;
+byte const ENC_2_DIRECTION_PIN = 7;
 
 // --- Register Constants -----------------------------------------------------
 // No register is selected
@@ -34,8 +37,8 @@ byte const REG_RESET = 0x0C;
 byte const REG_COUNT = 0x10;
 
 // --- Constants for low frequency activity LED -------------------------------
-unsigned int const BLINK_MS = 500;
-unsigned long const DELAY_MS = 10;
+unsigned int const BLINK_MS = 250;
+unsigned long const DELAY_MS = 1;
 unsigned int const LOOP_COUNTER_START = BLINK_MS / DELAY_MS;
 
 // --- Global Variables -------------------------------------------------------
@@ -48,7 +51,7 @@ Encoder enc_2(ENC_2_PIN_1, ENC_2_PIN_2);
 // `Encoder::read` can't be called inside `requestEvent`.
 long temp_counter_1 = 0;
 long temp_counter_2 = 0;
-// Low frequency activity LED: state and counter.
+// Low frequency activity LED: state and counters.
 bool led_state = LOW;
 unsigned int loop_counter = LOOP_COUNTER_START;
 long old_counter_1 = 0;
@@ -59,6 +62,7 @@ long old_counter_2 = 0;
 void setup() {
     // Init I2C -----------------------
     // Compute I2C address, respecting address jumpers.
+    // Address jumpers must be connected to ground.
     pinMode(I2C_ADDR_PIN_1, INPUT_PULLUP);
     pinMode(I2C_ADDR_PIN_2, INPUT_PULLUP);
     byte i2c_address = I2C_ADDR_BASE;
@@ -78,6 +82,24 @@ void setup() {
 
     // Init activity LED --------------
     pinMode(LED_BUILTIN, OUTPUT);
+
+    // Init encoder library --------------
+    // Direction jumpers must be connected to ground.
+    pinMode(ENC_1_DIRECTION_PIN, INPUT_PULLUP);
+    pinMode(ENC_2_DIRECTION_PIN, INPUT_PULLUP);
+    if (digitalRead(ENC_1_DIRECTION_PIN) == LOW) {
+        enc_1 = Encoder(ENC_1_PIN_2, ENC_1_PIN_1);
+    }
+    else {
+        enc_1 = Encoder(ENC_1_PIN_1, ENC_1_PIN_2);
+    }
+    if (digitalRead(ENC_2_DIRECTION_PIN) == LOW)
+    {
+        enc_2 = Encoder(ENC_2_PIN_2, ENC_2_PIN_2);
+    }
+    else {
+        enc_2 = Encoder(ENC_2_PIN_1, ENC_2_PIN_2);
+    }
 
     // start serial for output
     Serial.begin(9600);
