@@ -102,8 +102,8 @@ void setup() {
     }
 
     // start serial for output
-    Serial.begin(9600);
-    Serial.println("I2C Test");
+    //Serial.begin(9600);
+    //Serial.println("I2C Test");
 }
 
 // --- Run --------------------------------------------------------------------
@@ -130,10 +130,10 @@ void loop() {
         old_counter_2 = counter_2;
         led_state = !led_state;
         digitalWrite(LED_BUILTIN, led_state);
-        Serial.print("Blink led, counters 1: ");
-        Serial.print(counter_1, DEC);
-        Serial.print(" 2: ");
-        Serial.println(counter_2, DEC);
+        //Serial.print("Blink led, counters 1: ");
+        //Serial.print(counter_1, DEC);
+        //Serial.print(" 2: ");
+        //Serial.println(counter_2, DEC);
     }
   }
  
@@ -149,8 +149,8 @@ void receiveEvent(int _) {
       // interpreted as the register.
       case REG_NONE:
         cmdReg = Wire.read();
-        Serial.print("Register: ");
-        Serial.println(cmdReg, HEX);
+        //Serial.print("Register: ");
+        //Serial.println(cmdReg, HEX);
  
         // Also read the counters because we can't read them in the `requestEvent` function.
         temp_counter_1 = enc_1.read();
@@ -167,8 +167,8 @@ void receiveEvent(int _) {
         long newPositon = *(long *)buf;
         enc_1.write(newPositon);
         enc_2.write(newPositon);
-        Serial.print("Reset. Receive new value: ");
-        Serial.println(newPositon, DEC);
+        //Serial.print("Reset. Receive new value: ");
+        //Serial.println(newPositon, DEC);
  
         // The command is finished, reset the register state
         cmdReg = REG_NONE;
@@ -176,13 +176,13 @@ void receiveEvent(int _) {
 
       // Error: Read all bytes in this transaction
       default:
-        Serial.print("Error! Receive: ");
+        //Serial.print("Error! Receive: ");
         while (0 < Wire.available()) {
           byte errByte = Wire.read();
-          Serial.print(errByte, HEX);
-          Serial.print(", ");
+          //Serial.print(errByte, HEX);
+          //Serial.print(", ");
         }
-        Serial.println("");
+        //Serial.println("");
  
         // Reset the register state, wait for new regiser/command
         cmdReg = REG_NONE;
@@ -197,7 +197,7 @@ void requestEvent() {
   switch (cmdReg) {
     // Command: send the identifiacation code
     case REG_WHOAMI:
-      Serial.println("Who am I. Send: 0xOd");
+      //Serial.println("Who am I. Send: 0xOd");
       Wire.write(0x0d);
       // The command is finished, reset the register state
       cmdReg = REG_NONE;
@@ -230,7 +230,7 @@ void requestEvent() {
 
     // Error
     default:
-      Serial.println("Error! Send: 0");
+      //Serial.println("Error! Send: 0");
       Wire.write(0x00);
       // Reset the register
       cmdReg = REG_NONE;
