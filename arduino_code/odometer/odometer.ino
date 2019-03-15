@@ -4,7 +4,7 @@
 
 // This program is an I2C device, that counts pulses from 2 quadrature encoders.
 
-#include <Encoder.h>
+#include "Encoder.h"
 #include <Wire.h>
 
 // --- I2C Constants ----------------------------------------------------------
