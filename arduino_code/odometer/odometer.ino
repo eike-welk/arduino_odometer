@@ -7,14 +7,6 @@
 #include "Encoder.h"
 #include <Wire.h>
 
-// --- I2C Constants ----------------------------------------------------------
-// I2C Pins on Arduino Nano:  A4 (SDA) and A5 (SCL)
-// Base address
-byte const I2C_ADDR_BASE = 0x28;
-// Lowest address bits can be chosen with jumpers
-byte const I2C_ADDR_PIN_1 = 11;
-byte const I2C_ADDR_PIN_2 = 12;
-
 // --- Quadrature Encoder Constants -------------------------------------------
 // Interrupt capable pins on Arduino Nano: D2, D3
 // Each encoder gets one interrupt pin.
@@ -26,7 +18,15 @@ byte const ENC_2_PIN_2 = 5;
 byte const ENC_1_DIRECTION_PIN = 6;
 byte const ENC_2_DIRECTION_PIN = 7;
 
-// --- Register Constants -----------------------------------------------------
+// --- I2C Constants ----------------------------------------------------------
+// I2C Pins on Arduino Nano:  A4 (SDA) and A5 (SCL)
+// Base address
+byte const I2C_ADDR_BASE = 0x28;
+// Lowest address bits can be chosen with jumpers
+byte const I2C_ADDR_PIN_1 = 11;
+byte const I2C_ADDR_PIN_2 = 12;
+
+// ---I2C Registers -------------------
 // No register is selected
 byte const REG_NONE = 0;
 // Identifies the device, readable, 1 byte
@@ -37,9 +37,11 @@ byte const REG_RESET = 0x0C;
 byte const REG_COUNT = 0x10;
 
 // --- Constants for low frequency activity LED -------------------------------
-unsigned int const BLINK_MS = 250;
-unsigned long const DELAY_MS = 1;
-unsigned int const LOOP_COUNTER_START = BLINK_MS / DELAY_MS;
+// Time between checks for activity, in microseconds. Also blink frequency / 2.
+unsigned long const BLINK_US = 250000L;
+// Estimated average duration of the main loop in microseconds.
+unsigned long const LOOP_US = 20;
+unsigned long const LOOP_COUNTER_START = BLINK_US / LOOP_US;
 
 // --- Global Variables -------------------------------------------------------
 // Selector for the internal registers.
@@ -53,7 +55,7 @@ long temp_counter_1 = 0;
 long temp_counter_2 = 0;
 // Low frequency activity LED: state and counters.
 bool led_state = LOW;
-unsigned int loop_counter = LOOP_COUNTER_START;
+unsigned long loop_counter = LOOP_COUNTER_START;
 long old_counter_1 = 0;
 long old_counter_2 = 0;
 
@@ -101,7 +103,7 @@ void setup() {
         enc_2 = Encoder(ENC_2_PIN_1, ENC_2_PIN_2);
     }
 
-    // start serial for output
+    // start serial for output --------
     //Serial.begin(9600);
     //Serial.println("I2C Test");
 }
@@ -110,9 +112,9 @@ void setup() {
 // Function that is called forever in a loop.
 void loop() {
   // Read the encoders because they have only one interrupt pin.
-  // TODO: Is this necessary?
-  enc_1.read();
-  enc_2.read();
+  long counter_1, counter_2;
+  counter_1 = enc_1.read();
+  counter_2 = enc_2.read();
  
   // Decrement counter for low frequency LED.
   -- loop_counter;
@@ -120,9 +122,6 @@ void loop() {
     loop_counter = LOOP_COUNTER_START;
  
     // Blink the LED, if one of the counter has changed.
-    long counter_1, counter_2;
-    counter_1 = enc_1.read();
-    counter_2 = enc_2.read();
     if (  (counter_1 != old_counter_1)
        or (counter_2 != old_counter_2)
        ) {
@@ -136,8 +135,6 @@ void loop() {
         //Serial.println(counter_2, DEC);
     }
   }
- 
-  delay(DELAY_MS);
 }
 
 // Function that executes whenever data is received from master.
@@ -164,6 +161,7 @@ void receiveEvent(int _) {
         buf[2] = Wire.read();
         buf[1] = Wire.read();
         buf[0] = Wire.read();
+        // TODO: No copying, make `buf` only a pointer to `newPositon`.
         long newPositon = *(long *)buf;
         enc_1.write(newPositon);
         enc_2.write(newPositon);
@@ -209,6 +207,7 @@ void requestEvent() {
       //Serial.println(enc_1.read(), DEC);
       byte buf[4]; // long is 4 bytes
       //*(long *)buf = enc_1.read();
+      // TODO: No copying, make `buf` only a pointer to `newPositon`.
       *(long *)buf = temp_counter_1;
       Wire.write(buf[3]);
       Wire.write(buf[2]);
@@ -218,6 +217,7 @@ void requestEvent() {
       //Serial.print(", 2: ");
       //Serial.println(enc_2.read(), DEC);
       //*(long *)buf = enc_2.read();
+      // TODO: No copying, make `buf` only a pointer to `newPositon`.
       *(long *)buf = temp_counter_2;
       Wire.write(buf[3]);
       Wire.write(buf[2]);
