@@ -1,3 +1,6 @@
+# Fritzing export for production directory
+hardware/export/
+
 # Vim swap files
 *.swp
 
