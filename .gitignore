@@ -1,10 +1,13 @@
+# Generated geometry
+*.stl
+
 # Fritzing export for production directory
-hardware/export/
+electronics/arduino-nano/export/
 
 # Vim swap files
 *.swp
 
-# Byte-compiled / optimized / DLL files
+# Python: Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
