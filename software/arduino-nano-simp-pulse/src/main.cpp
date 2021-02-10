@@ -84,12 +84,12 @@ void receiveEvent(int _) {
         buf[2] = Wire.read();
         buf[1] = Wire.read();
         buf[0] = Wire.read();
-        // TODO: No copying, make `buf` only a pointer to `newPositon`.
-        long newPositon = *(long *)buf;
-        enc_1.write(newPositon);
-        enc_2.write(newPositon);
+        // TODO: No copying, make `buf` only a pointer to `newPosition`.
+        long newPosition = *(long *)buf;
+        enc_1.write(newPosition);
+        enc_2.write(newPosition);
         //Serial.print("Reset. Receive new value: ");
-        //Serial.println(newPositon, DEC);
+        //Serial.println(newPosition, DEC);
  
         // The command is finished, reset the register state
         cmdReg = REG_NONE;
@@ -105,7 +105,7 @@ void receiveEvent(int _) {
         }
         //Serial.println("");
  
-        // Reset the register state, wait for new regiser/command
+        // Reset the register state, wait for new register/command
         cmdReg = REG_NONE;
         break;
     }
@@ -117,7 +117,7 @@ void receiveEvent(int _) {
 // this function is registered as an event, see setup()
 void requestEvent() {
   switch (cmdReg) {
-    // Command: send the identifiacation code
+    // Command: send the identification code
     case REG_WHOAMI:
       //Serial.println("Who am I. Send: 0xOd");
       Wire.write(0x0d);
@@ -131,7 +131,7 @@ void requestEvent() {
       //Serial.println(enc_1.read(), DEC);
       byte buf[4]; // long is 4 bytes
       //*(long *)buf = enc_1.read();
-      // TODO: No copying, make `buf` only a pointer to `newPositon`.
+      // TODO: No copying, make `buf` only a pointer to `newPosition`.
       *(long *)buf = temp_counter_1;
       Wire.write(buf[3]);
       Wire.write(buf[2]);
@@ -141,7 +141,7 @@ void requestEvent() {
       //Serial.print(", 2: ");
       //Serial.println(enc_2.read(), DEC);
       //*(long *)buf = enc_2.read();
-      // TODO: No copying, make `buf` only a pointer to `newPositon`.
+      // TODO: No copying, make `buf` only a pointer to `newPosition`.
       *(long *)buf = temp_counter_2;
       Wire.write(buf[3]);
       Wire.write(buf[2]);
