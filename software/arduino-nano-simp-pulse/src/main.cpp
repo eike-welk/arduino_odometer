@@ -4,19 +4,20 @@
 
 // This program is an I2C device, that counts pulses from 2 quadrature encoders.
 
-#include "Encoder.h"
+#include "PinChangeInterrupt.h"
 #include <Wire.h>
 
 // --- Quadrature Encoder Constants -------------------------------------------
-// Interrupt capable pins on Arduino Nano: D2, D3
-// Each encoder gets one interrupt pin.
-byte const ENC_1_PIN_1 = 2;
-byte const ENC_1_PIN_2 = 4;
-byte const ENC_2_PIN_1 = 3;
-byte const ENC_2_PIN_2 = 5;
-// Pins for encoder direction jumpers.
-byte const ENC_1_DIRECTION_PIN = 6;
-byte const ENC_2_DIRECTION_PIN = 7;
+// Pins with "Pin Interrupts" on Arduino Nano: D2, D3
+// This program however uses "Pin Change Interrupts" which work on many pins,
+// but are more complicated and slower.
+byte const PLUG_1_PIN_1 = 2;
+byte const PLUG_1_PIN_2 = 4;
+byte const PLUG_2_PIN_1 = 3;
+byte const PLUG_2_PIN_2 = 5;
+// Pins for jumpers to swap left and right wheels on each plug.
+byte const PLUG_1_RL_PIN = 6;
+byte const PLUG_2_RL_PIN = 7;
 
 // --- I2C Constants ----------------------------------------------------------
 // I2C Pins on Arduino Nano:  A4 (SDA) and A5 (SCL)
@@ -26,15 +27,15 @@ byte const I2C_ADDR_BASE = 0x28;
 byte const I2C_ADDR_PIN_1 = 11;
 byte const I2C_ADDR_PIN_2 = 12;
 
-// ---I2C Registers -------------------
-// No register is selected
-byte const REG_NONE = 0;
-// Identifies the device, readable, 1 byte
-byte const REG_WHOAMI = 0x01;
-// Reset all counters to a certain value, writable, 1 long
-byte const REG_RESET = 0x0C;
-// The counters, readable, 2 long
-byte const REG_COUNT = 0x10;
+// --- Commands that the odometer understands -------------------
+// No command is executing
+byte const CMD_NONE = 0;
+// Identifies the device, sends 6 bytes over I2C.
+byte const CMD_WHOAMI = 0x01;
+// Reset all counters to a certain value, reads 1 long.
+byte const CMD_RESET = 0x0C;
+// Send the counter values, sends 4 long over I2C.
+byte const CMD_GET_COUNT = 0x10;
 
 // --- Constants for low frequency activity LED -------------------------------
 // Time between checks for activity, in microseconds. Also blink frequency / 2.
@@ -44,11 +45,11 @@ unsigned long const LOOP_US = 20;
 unsigned long const LOOP_COUNTER_START = BLINK_US / LOOP_US;
 
 // --- Global Variables -------------------------------------------------------
-// Selector for the internal registers.
-byte cmdReg = REG_NONE;
+// Command that is currently executed.
+byte cmdState = CMD_NONE;
 // The reader objects for the encoders.
-Encoder enc_1(ENC_1_PIN_1, ENC_1_PIN_2);
-Encoder enc_2(ENC_2_PIN_1, ENC_2_PIN_2);
+// Encoder enc_1(PLUG_1_PIN_1, PLUG_1_PIN_2);
+// Encoder enc_2(PLUG_2_PIN_1, PLUG_2_PIN_2);
 // Temporary counters for sending on I2C-Bus.
 // `Encoder::read` can't be called inside `requestEvent`.
 long temp_counter_1 = 0;
@@ -64,21 +65,21 @@ long old_counter_2 = 0;
 // This function is registered as an event, see `setup()`.
 void receiveEvent(int _) {
   while (Wire.available() > 0) {
-    switch (cmdReg) {
+    switch (cmdState) {
       // If the register is not set, the current byte is
       // interpreted as the register.
-      case REG_NONE:
-        cmdReg = Wire.read();
+      case CMD_NONE:
+        cmdState = Wire.read();
         //Serial.print("Register: ");
-        //Serial.println(cmdReg, HEX);
+        //Serial.println(cmdState, HEX);
  
         // Also read the counters because we can't read them in the `requestEvent` function.
-        temp_counter_1 = enc_1.read();
-        temp_counter_2 = enc_2.read();
+        // temp_counter_1 = enc_1.read();
+        // temp_counter_2 = enc_2.read();
         break;
 
       // Command: Reset the counters to a specified value.
-      case REG_RESET:
+      case CMD_RESET:
         byte buf[4]; // long is 4 bytes
         buf[3] = Wire.read();
         buf[2] = Wire.read();
@@ -86,13 +87,13 @@ void receiveEvent(int _) {
         buf[0] = Wire.read();
         // TODO: No copying, make `buf` only a pointer to `newPosition`.
         long newPosition = *(long *)buf;
-        enc_1.write(newPosition);
-        enc_2.write(newPosition);
+        // enc_1.write(newPosition);
+        // enc_2.write(newPosition);
         //Serial.print("Reset. Receive new value: ");
         //Serial.println(newPosition, DEC);
  
         // The command is finished, reset the register state
-        cmdReg = REG_NONE;
+        cmdState = CMD_NONE;
         break;
 
       // Error: Read all bytes in this transaction
@@ -106,7 +107,7 @@ void receiveEvent(int _) {
         //Serial.println("");
  
         // Reset the register state, wait for new register/command
-        cmdReg = REG_NONE;
+        cmdState = CMD_NONE;
         break;
     }
   }
@@ -116,17 +117,17 @@ void receiveEvent(int _) {
 // function that executes whenever data is requested by master
 // this function is registered as an event, see setup()
 void requestEvent() {
-  switch (cmdReg) {
+  switch (cmdState) {
     // Command: send the identification code
-    case REG_WHOAMI:
-      //Serial.println("Who am I. Send: 0xOd");
-      Wire.write(0x0d);
+    case CMD_WHOAMI:
+      //Serial.println("Who am I.");
+      Wire.write("odsp01");
       // The command is finished, reset the register state
-      cmdReg = REG_NONE;
+      cmdState = CMD_NONE;
       break;
 
     // Command: Send the counter values
-    case REG_COUNT:
+    case CMD_GET_COUNT:
       //Serial.print("Send counter values. 1: ");
       //Serial.println(enc_1.read(), DEC);
       byte buf[4]; // long is 4 bytes
@@ -149,7 +150,7 @@ void requestEvent() {
       Wire.write(buf[0]);
  
       // The command is finished, reset the register state
-      cmdReg = REG_NONE;
+      cmdState = CMD_NONE;
       break;
 
     // Error
@@ -157,7 +158,7 @@ void requestEvent() {
       //Serial.println("Error! Send: 0");
       Wire.write(0x00);
       // Reset the register
-      cmdReg = REG_NONE;
+      cmdState = CMD_NONE;
       break;
   }
 }
@@ -191,20 +192,20 @@ void setup() {
 
     // Init encoder library --------------
     // Direction jumpers must be connected to ground.
-    pinMode(ENC_1_DIRECTION_PIN, INPUT_PULLUP);
-    pinMode(ENC_2_DIRECTION_PIN, INPUT_PULLUP);
-    if (digitalRead(ENC_1_DIRECTION_PIN) == LOW) {
-        enc_1 = Encoder(ENC_1_PIN_2, ENC_1_PIN_1);
+    pinMode(PLUG_1_RL_PIN, INPUT_PULLUP);
+    pinMode(PLUG_2_RL_PIN, INPUT_PULLUP);
+    if (digitalRead(PLUG_1_RL_PIN) == LOW) {
+        // enc_1 = Encoder(PLUG_1_PIN_2, PLUG_1_PIN_1);
     }
     else {
-        enc_1 = Encoder(ENC_1_PIN_1, ENC_1_PIN_2);
+        // enc_1 = Encoder(PLUG_1_PIN_1, PLUG_1_PIN_2);
     }
-    if (digitalRead(ENC_2_DIRECTION_PIN) == LOW)
+    if (digitalRead(PLUG_2_RL_PIN) == LOW)
     {
-        enc_2 = Encoder(ENC_2_PIN_2, ENC_2_PIN_2);
+        // enc_2 = Encoder(PLUG_2_PIN_2, PLUG_2_PIN_2);
     }
     else {
-        enc_2 = Encoder(ENC_2_PIN_1, ENC_2_PIN_2);
+        // enc_2 = Encoder(PLUG_2_PIN_1, PLUG_2_PIN_2);
     }
 
     // start serial for output --------
@@ -218,8 +219,8 @@ void setup() {
 void loop() {
   // Read the encoders because they have only one interrupt pin.
   long counter_1, counter_2;
-  counter_1 = enc_1.read();
-  counter_2 = enc_2.read();
+  // counter_1 = enc_1.read();
+  // counter_2 = enc_2.read();
  
   // Decrement counter for low frequency LED.
   -- loop_counter;
