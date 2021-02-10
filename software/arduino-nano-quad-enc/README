@@ -1,0 +1,13 @@
+################################################################################
+                          Odometer for Donkeycar
+
+                            Quadrature Encoder
+################################################################################
+
+This is a firmware for an odometer for a self driving toy car: the Donkeycar.
+
+There are several different firmwares. This firmware:
+* Written for the **Arduino Nano** based circuit board.
+* Uses two **quadrature encoders** as inputs.
+* Compiles with the **Arduino IDE**.
+

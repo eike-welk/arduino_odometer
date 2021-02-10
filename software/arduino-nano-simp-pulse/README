@@ -1,0 +1,14 @@
+################################################################################
+                          Odometer for Donkeycar
+
+                              Simple Pulse
+################################################################################
+
+This is a firmware for an odometer for a self driving toy car: the Donkeycar.
+
+There are several different firmwares. This firmware:
+* Written for the **Arduino Nano** based circuit board.
+* Uses four **single Hall sensors** as inputs. It can therefore not detect the
+  direction of the rotation.
+* Compiles with **Platform IO**.
+
