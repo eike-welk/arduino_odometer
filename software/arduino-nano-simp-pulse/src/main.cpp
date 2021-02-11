@@ -42,23 +42,33 @@ byte const CMD_GET_COUNT = 0x10;
 unsigned long const BLINK_US = 250000L;
 // Estimated average duration of the main loop in microseconds.
 unsigned long const LOOP_US = 20;
-unsigned long const LOOP_COUNTER_START = BLINK_US / LOOP_US;
+unsigned long int LOOP_COUNTER_START = BLINK_US / LOOP_US;
 
 // --- Global Variables -------------------------------------------------------
 // Command that is currently executed.
 byte cmdState = CMD_NONE;
-// The reader objects for the encoders.
-// Encoder enc_1(PLUG_1_PIN_1, PLUG_1_PIN_2);
-// Encoder enc_2(PLUG_2_PIN_1, PLUG_2_PIN_2);
-// Temporary counters for sending on I2C-Bus.
-// `Encoder::read` can't be called inside `requestEvent`.
-long temp_counter_1 = 0;
-long temp_counter_2 = 0;
+// Interrupt numbers, computed in setup()
+byte intr_num_1_1;
+byte intr_num_1_2;
+byte intr_num_2_1;
+byte intr_num_2_2;
+// Fast counters for the interrupt routines
+byte volatile intr_counter_1_1 = 0; // Plug 1
+byte volatile intr_counter_1_2 = 0;
+byte volatile intr_counter_2_1 = 0; // Plug 2
+byte volatile intr_counter_2_2 = 0;
+// The main counters of the odometer
+long counter_1_1 = 0; // Plug 1
+long counter_1_2 = 0;
+long counter_2_1 = 0; // Plug 2
+long counter_2_2 = 0;
 // Low frequency activity LED: state and counters.
 bool led_state = LOW;
-unsigned long loop_counter = LOOP_COUNTER_START;
-long old_counter_1 = 0;
-long old_counter_2 = 0;
+unsigned int loop_counter = LOOP_COUNTER_START;
+long old_counter_1_1 = 0; // Plug 1
+long old_counter_1_2 = 0;
+long old_counter_2_1 = 0; // Plug 2
+long old_counter_2_2 = 0;
 
 
 // Function that executes whenever data is received from master.
@@ -74,13 +84,14 @@ void receiveEvent(int _) {
         //Serial.println(cmdState, HEX);
  
         // Also read the counters because we can't read them in the `requestEvent` function.
-        // temp_counter_1 = enc_1.read();
-        // temp_counter_2 = enc_2.read();
+        // counter_1_1 = enc_1.read();
+        // counter_1_2 = enc_2.read();
         break;
 
       // Command: Reset the counters to a specified value.
       case CMD_RESET:
         byte buf[4]; // long is 4 bytes
+        // Read the bytes in network order
         buf[3] = Wire.read();
         buf[2] = Wire.read();
         buf[1] = Wire.read();
@@ -114,14 +125,14 @@ void receiveEvent(int _) {
 }
 
 
-// function that executes whenever data is requested by master
+// Function that executes whenever data is requested by master
 // this function is registered as an event, see setup()
 void requestEvent() {
   switch (cmdState) {
     // Command: send the identification code
     case CMD_WHOAMI:
       //Serial.println("Who am I.");
-      Wire.write("odsp01");
+      Wire.write("odsp01", 6);
       // The command is finished, reset the register state
       cmdState = CMD_NONE;
       break;
@@ -133,7 +144,8 @@ void requestEvent() {
       byte buf[4]; // long is 4 bytes
       //*(long *)buf = enc_1.read();
       // TODO: No copying, make `buf` only a pointer to `newPosition`.
-      *(long *)buf = temp_counter_1;
+      *(long *)buf = counter_1_1;
+      // Write the bytes in network order
       Wire.write(buf[3]);
       Wire.write(buf[2]);
       Wire.write(buf[1]);
@@ -143,7 +155,8 @@ void requestEvent() {
       //Serial.println(enc_2.read(), DEC);
       //*(long *)buf = enc_2.read();
       // TODO: No copying, make `buf` only a pointer to `newPosition`.
-      *(long *)buf = temp_counter_2;
+      *(long *)buf = counter_1_2;
+      // Write the bytes in network order
       Wire.write(buf[3]);
       Wire.write(buf[2]);
       Wire.write(buf[1]);
@@ -163,82 +176,103 @@ void requestEvent() {
   }
 }
 
+// --- Interrupt routines ------------------------------------------------------
+void count_step_1_1(void) { intr_counter_1_1 ++; }
+void count_step_1_2(void) { intr_counter_1_2 ++; }
+void count_step_2_1(void) { intr_counter_2_1 ++; }
+void count_step_2_2(void) { intr_counter_2_2 ++; }
 
 // --- Startup -----------------------------------------------------------------
 // Function that is called once at startup.
-void setup() {
-    // Init I2C -----------------------
-    // Compute I2C address, respecting address jumpers.
-    // Address jumpers must be connected to ground.
-    pinMode(I2C_ADDR_PIN_1, INPUT_PULLUP);
-    pinMode(I2C_ADDR_PIN_2, INPUT_PULLUP);
-    byte i2c_address = I2C_ADDR_BASE;
-    if (digitalRead(I2C_ADDR_PIN_1) == LOW) {
-        i2c_address += 1;
-    }
-    if (digitalRead(I2C_ADDR_PIN_2) == LOW) {
-        i2c_address += 2;
-    }
-    // Init I2C subsystem
-    Wire.begin(i2c_address);         // join i2c bus as slave
-    Wire.onReceive(receiveEvent); // register event
-    Wire.onRequest(requestEvent); // register event
-    // Switch the pullup resistors off for the I2C pins.
-    digitalWrite(SDA, LOW);
-    digitalWrite(SCL, LOW);
+void setup()
+{
+  // Init I2C ------------------------
+  // Compute I2C address, respecting address jumpers.
+  // The Address jumpers connect the pins to ground.
+  pinMode(I2C_ADDR_PIN_1, INPUT_PULLUP);
+  pinMode(I2C_ADDR_PIN_2, INPUT_PULLUP);
+  byte i2c_address = I2C_ADDR_BASE;
+  if (digitalRead(I2C_ADDR_PIN_1) == LOW) { i2c_address += 1; }
+  if (digitalRead(I2C_ADDR_PIN_2) == LOW) { i2c_address += 2; }
+  // Init I2C subsystem
+  Wire.begin(i2c_address);      // join i2c bus as slave
+  Wire.onReceive(receiveEvent); // register event
+  Wire.onRequest(requestEvent); // register event
+  // Switch the pullup resistors off for the I2C pins.
+  // As this is a 5V board, and RaspberryPi is 3.3 V.
+  digitalWrite(SDA, LOW);
+  digitalWrite(SCL, LOW);
 
-    // Init activity LED --------------
-    pinMode(LED_BUILTIN, OUTPUT);
+  // TODO: Right - Left exchange jumpers ---
+  // The RL jumpers connected the pins to ground.
+  pinMode(PLUG_1_RL_PIN, INPUT_PULLUP);
+  pinMode(PLUG_2_RL_PIN, INPUT_PULLUP);
+  if (digitalRead(PLUG_1_RL_PIN) == LOW)
+  {
+  }
+  if (digitalRead(PLUG_2_RL_PIN) == LOW)
+  {
+  }
 
-    // Init encoder library --------------
-    // Direction jumpers must be connected to ground.
-    pinMode(PLUG_1_RL_PIN, INPUT_PULLUP);
-    pinMode(PLUG_2_RL_PIN, INPUT_PULLUP);
-    if (digitalRead(PLUG_1_RL_PIN) == LOW) {
-        // enc_1 = Encoder(PLUG_1_PIN_2, PLUG_1_PIN_1);
-    }
-    else {
-        // enc_1 = Encoder(PLUG_1_PIN_1, PLUG_1_PIN_2);
-    }
-    if (digitalRead(PLUG_2_RL_PIN) == LOW)
-    {
-        // enc_2 = Encoder(PLUG_2_PIN_2, PLUG_2_PIN_2);
-    }
-    else {
-        // enc_2 = Encoder(PLUG_2_PIN_1, PLUG_2_PIN_2);
-    }
+  // Configure the interupt functions
+  intr_num_1_1 = digitalPinToPinChangeInterrupt(PLUG_1_PIN_1);
+  intr_num_1_2 = digitalPinToPinChangeInterrupt(PLUG_1_PIN_2);
+  intr_num_2_1 = digitalPinToPinChangeInterrupt(PLUG_2_PIN_1);
+  intr_num_2_2 = digitalPinToPinChangeInterrupt(PLUG_2_PIN_2);
+  attachPinChangeInterrupt(intr_num_1_1, count_step_1_1, CHANGE);
+  attachPinChangeInterrupt(intr_num_1_2, count_step_1_2, CHANGE);
+  attachPinChangeInterrupt(intr_num_2_1, count_step_2_1, CHANGE);
+  attachPinChangeInterrupt(intr_num_2_2, count_step_2_2, CHANGE);
 
-    // start serial for output --------
-    //Serial.begin(9600);
-    //Serial.println("I2C Test");
+  // Init activity LED ---------------
+  // led_state = LOW;
+  // loop_counter = LOOP_COUNTER_START;
+  pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, led_state);
+
+  // start serial for output --------
+  //Serial.begin(9600);
+  //Serial.println("Setup complete.");
 }
-
 
 // --- Run --------------------------------------------------------------------
 // Function that is called forever in a loop.
-void loop() {
-  // Read the encoders because they have only one interrupt pin.
-  long counter_1, counter_2;
-  // counter_1 = enc_1.read();
-  // counter_2 = enc_2.read();
- 
-  // Decrement counter for low frequency LED.
-  -- loop_counter;
-  if (loop_counter == 0) {
+void loop()
+{
+  // Add the small interupt counters to the main counters. ---
+  noInterrupts();
+  counter_1_1 += intr_counter_1_1; intr_counter_1_1 = 0;
+  counter_1_2 += intr_counter_1_2; intr_counter_1_2 = 0;
+  counter_2_1 += intr_counter_2_1; intr_counter_2_1 = 0;
+  counter_2_2 += intr_counter_2_2; intr_counter_2_2 = 0;
+  interrupts();
+
+  // Low frequency activity LED --------
+  // Decrement counter for LED.
+  --loop_counter;
+  if (loop_counter == 0)
+  {
     loop_counter = LOOP_COUNTER_START;
- 
+
     // Blink the LED, if one of the counters has changed.
-    if (  (counter_1 != old_counter_1)
-       or (counter_2 != old_counter_2)
-       ) {
-        old_counter_1 = counter_1;
-        old_counter_2 = counter_2;
-        led_state = !led_state;
-        digitalWrite(LED_BUILTIN, led_state);
-        //Serial.print("Blink led, counters 1: ");
-        //Serial.print(counter_1, DEC);
-        //Serial.print(" 2: ");
-        //Serial.println(counter_2, DEC);
+    if (  (counter_1_1 != old_counter_1_1) 
+       or (counter_1_2 != old_counter_1_2) 
+       or (counter_2_1 != old_counter_2_1) 
+       or (counter_2_2 != old_counter_2_2)
+       )
+    {
+      old_counter_1_1 = counter_1_1;
+      old_counter_1_2 = counter_1_2;
+      old_counter_2_1 = counter_2_1;
+      old_counter_2_2 = counter_2_2;
+      led_state = !led_state;
+      digitalWrite(LED_BUILTIN, led_state);
+      // Serial.println("Blink led");
+      // Serial.print("Counters on plug 1: ");
+      // Serial.print(counter_1_1, DEC);
+      // Serial.print(", ");
+      // Serial.print(counter_1_2, DEC);
+      // Serial.println();
     }
   }
 }
