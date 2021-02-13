@@ -90,22 +90,33 @@ void receiveEvent(int _) {
 
       // Command: Reset the counters to a specified value.
       case CMD_RESET:
-        byte buf[4]; // long is 4 bytes
-        // Read the bytes in network order
-        buf[3] = Wire.read();
-        buf[2] = Wire.read();
-        buf[1] = Wire.read();
-        buf[0] = Wire.read();
-        // TODO: No copying, make `buf` only a pointer to `newPosition`.
-        long newPosition = *(long *)buf;
-        // enc_1.write(newPosition);
-        // enc_2.write(newPosition);
+      {
+        byte b1, b2, b3, b4;
+        int32_t new_counter;
+
+        b1 = Wire.read();
+        b2 = Wire.read();
+        b3 = Wire.read();
+        b4 = Wire.read();
+
+        // Convert the data from network order to host order.
+        new_counter = b1;
+        new_counter = (new_counter << 8) | b2;
+        new_counter = (new_counter << 8) | b3;
+        new_counter = (new_counter << 8) | b4;
+
+        counter_1_1 = new_counter;
+        counter_1_2 = new_counter;
+        counter_2_1 = new_counter;
+        counter_2_2 = new_counter;
+
         //Serial.print("Reset. Receive new value: ");
         //Serial.println(newPosition, DEC);
  
         // The command is finished, reset the register state
         cmdState = CMD_NONE;
         break;
+      }
 
       // Error: Read all bytes in this transaction
       default:
