@@ -41,16 +41,16 @@ byte const CMD_GET_COUNT = 0x10;
 // Time between checks for activity, in microseconds. Also blink frequency / 2.
 unsigned long const BLINK_US = 250000L;
 // Estimated average duration of the main loop in microseconds.
-unsigned long const LOOP_US = 20;
+unsigned long const LOOP_US = 50;
 unsigned long int LOOP_COUNTER_START = BLINK_US / LOOP_US;
 
 // --- Global Variables -------------------------------------------------------
 // Command that is currently executed.
 byte cmdState = CMD_NONE;
 // Interrupt numbers, computed in setup()
-byte intr_num_1_1;
+byte intr_num_1_1; // Plug 1 
 byte intr_num_1_2;
-byte intr_num_2_1;
+byte intr_num_2_1; // Plug 1
 byte intr_num_2_2;
 // Fast counters for the interrupt routines
 byte volatile intr_counter_1_1 = 0; // Plug 1
@@ -70,7 +70,11 @@ long old_counter_1_2 = 0;
 long old_counter_2_1 = 0; // Plug 2
 long old_counter_2_2 = 0;
 
+// Use the RL-Pins for debug output
+#define DEBUG_RL_PINS true
 
+
+// I2C Functions ---------------------------------------------------------------
 // Function that executes whenever data is received from master.
 // This function is registered as an event, see `setup()`.
 void receiveEvent(int _) {
@@ -82,10 +86,6 @@ void receiveEvent(int _) {
         cmdState = Wire.read();
         //Serial.print("Register: ");
         //Serial.println(cmdState, HEX);
- 
-        // Also read the counters because we can't read them in the `requestEvent` function.
-        // counter_1_1 = enc_1.read();
-        // counter_1_2 = enc_2.read();
         break;
 
       // Command: Reset the counters to a specified value.
@@ -111,15 +111,20 @@ void receiveEvent(int _) {
         counter_2_2 = new_counter;
 
         //Serial.print("Reset. Receive new value: ");
-        //Serial.println(newPosition, DEC);
- 
+        //Serial.println(new_counter, DEC);
+
+        if (Wire.available())
+          goto i2c_receive_error;
+
         // The command is finished, reset the register state
         cmdState = CMD_NONE;
         break;
       }
 
       // Error: Read all bytes in this transaction
+      i2c_receive_error:
       default:
+      {
         //Serial.print("Error! Receive: ");
         while (0 < Wire.available()) {
           byte errByte = Wire.read();
@@ -131,6 +136,7 @@ void receiveEvent(int _) {
         // Reset the register state, wait for new register/command
         cmdState = CMD_NONE;
         break;
+      }
     }
   }
 }
@@ -187,18 +193,20 @@ void requestEvent() {
   }
 }
 
+
 // --- Interrupt routines ------------------------------------------------------
 void count_step_1_1(void) { intr_counter_1_1 ++; }
 void count_step_1_2(void) { intr_counter_1_2 ++; }
 void count_step_2_1(void) { intr_counter_2_1 ++; }
 void count_step_2_2(void) { intr_counter_2_2 ++; }
 
+
 // --- Startup -----------------------------------------------------------------
 // Function that is called once at startup.
 void setup()
 {
   // Init I2C ------------------------
-  // Compute I2C address, respecting address jumpers.
+  // Compute I2C address, respecting the address jumpers.
   // The Address jumpers connect the pins to ground.
   pinMode(I2C_ADDR_PIN_1, INPUT_PULLUP);
   pinMode(I2C_ADDR_PIN_2, INPUT_PULLUP);
@@ -214,49 +222,79 @@ void setup()
   digitalWrite(SDA, LOW);
   digitalWrite(SCL, LOW);
 
-  // TODO: Right - Left exchange jumpers ---
-  // The RL jumpers connected the pins to ground.
-  pinMode(PLUG_1_RL_PIN, INPUT_PULLUP);
-  pinMode(PLUG_2_RL_PIN, INPUT_PULLUP);
-  if (digitalRead(PLUG_1_RL_PIN) == LOW)
-  {
-  }
-  if (digitalRead(PLUG_2_RL_PIN) == LOW)
-  {
-  }
-
-  // Configure the interupt functions
+  // Configure counting ----------------
+  // Compute the interrupt number for each pin
   intr_num_1_1 = digitalPinToPinChangeInterrupt(PLUG_1_PIN_1);
   intr_num_1_2 = digitalPinToPinChangeInterrupt(PLUG_1_PIN_2);
   intr_num_2_1 = digitalPinToPinChangeInterrupt(PLUG_2_PIN_1);
   intr_num_2_2 = digitalPinToPinChangeInterrupt(PLUG_2_PIN_2);
+  // Right - Left exchange jumpers 
+  // The RL jumpers connect the pins to ground.
+  pinMode(PLUG_1_RL_PIN, INPUT_PULLUP);
+  pinMode(PLUG_2_RL_PIN, INPUT_PULLUP);
+  // Swap interupt numbers if RL jumper is set.
+  byte temp_int;
+  if (digitalRead(PLUG_1_RL_PIN) == LOW)
+  {
+    temp_int = intr_num_1_1;
+    intr_num_1_1 = intr_num_1_2;
+    intr_num_1_2 = temp_int;
+  }
+  if (digitalRead(PLUG_2_RL_PIN) == LOW)
+  {
+    temp_int = intr_num_2_1;
+    intr_num_2_1 = intr_num_2_2;
+    intr_num_2_2 = temp_int;
+  }
+  // Configure the interupt functions
   attachPinChangeInterrupt(intr_num_1_1, count_step_1_1, CHANGE);
   attachPinChangeInterrupt(intr_num_1_2, count_step_1_2, CHANGE);
   attachPinChangeInterrupt(intr_num_2_1, count_step_2_1, CHANGE);
   attachPinChangeInterrupt(intr_num_2_2, count_step_2_2, CHANGE);
 
-  // Init activity LED ---------------
-  // led_state = LOW;
-  // loop_counter = LOOP_COUNTER_START;
+  // Init activity LED -----------------
   pinMode(LED_BUILTIN, OUTPUT);
   digitalWrite(LED_BUILTIN, led_state);
 
-  // start serial for output --------
+  // start serial for output -----------
   //Serial.begin(9600);
   //Serial.println("Setup complete.");
+
+  // Use the RL-Pins for debug output ---
+  #if DEBUG_RL_PINS
+    pinMode(PLUG_1_RL_PIN, OUTPUT);
+    pinMode(PLUG_2_RL_PIN, OUTPUT);
+  #endif
 }
+
 
 // --- Run --------------------------------------------------------------------
 // Function that is called forever in a loop.
 void loop()
 {
+  #if DEBUG_RL_PINS
+    digitalWrite(PLUG_1_RL_PIN, true);
+  #endif
+
   // Add the small interupt counters to the main counters. ---
-  noInterrupts();
-  counter_1_1 += intr_counter_1_1; intr_counter_1_1 = 0;
-  counter_1_2 += intr_counter_1_2; intr_counter_1_2 = 0;
-  counter_2_1 += intr_counter_2_1; intr_counter_2_1 = 0;
-  counter_2_2 += intr_counter_2_2; intr_counter_2_2 = 0;
-  interrupts();
+  // noInterrupts();
+  disablePinChangeInterrupt(intr_num_1_1);
+  counter_1_1 += intr_counter_1_1; 
+  intr_counter_1_1 = 0;
+  enablePinChangeInterrupt(intr_num_1_1);
+  disablePinChangeInterrupt(intr_num_1_2);
+  counter_1_2 += intr_counter_1_2; 
+  intr_counter_1_2 = 0;
+  enablePinChangeInterrupt(intr_num_1_2);
+  disablePinChangeInterrupt(intr_num_2_1);
+  counter_2_1 += intr_counter_2_1; 
+  intr_counter_2_1 = 0;
+  enablePinChangeInterrupt(intr_num_2_1);
+  disablePinChangeInterrupt(intr_num_2_2);
+  counter_2_2 += intr_counter_2_2; 
+  intr_counter_2_2 = 0;
+  enablePinChangeInterrupt(intr_num_2_2);
+  // interrupts();
 
   // Low frequency activity LED --------
   // Decrement counter for LED.
@@ -286,4 +324,8 @@ void loop()
       // Serial.println();
     }
   }
+
+  #if DEBUG_RL_PINS
+    digitalWrite(PLUG_1_RL_PIN, false);
+  #endif
 }
