@@ -7,7 +7,7 @@
 #include "PinChangeInterrupt.h"
 #include <Wire.h>
 
-// --- Quadrature Encoder Constants -------------------------------------------
+// --- Pulse Input Constants ---------------------------------------------------
 // Pins with "Pin Interrupts" on Arduino Nano: D2, D3
 // This program however uses "Pin Change Interrupts" which work on many pins,
 // but are more complicated and slower.
@@ -27,54 +27,79 @@ byte const I2C_ADDR_BASE = 0x28;
 byte const I2C_ADDR_PIN_1 = 11;
 byte const I2C_ADDR_PIN_2 = 12;
 
-// --- Commands that the odometer understands -------------------
+// --- Commands that the odometer understands ----------------------------------
 // No command is executing
 byte const CMD_NONE = 0;
 // Identifies the device, sends 6 bytes over I2C.
 byte const CMD_WHOAMI = 0x01;
 // Reset all counters to a certain value, reads 1 long.
 byte const CMD_RESET = 0x0C;
-// Send the counter values, sends 4 long over I2C.
+// Send the counter values, sends 4 int32_t over I2C.
 byte const CMD_GET_COUNT = 0x10;
 
-// --- Constants for low frequency activity LED -------------------------------
+// --- Constants for low frequency activity LED --------------------------------
 // Time between checks for activity, in microseconds. Also blink frequency / 2.
-unsigned long const BLINK_US = 250000L;
+uint32_t const BLINK_US = 250000L;
 // Estimated average duration of the main loop in microseconds.
-unsigned long const LOOP_US = 50;
-unsigned long int LOOP_COUNTER_START = BLINK_US / LOOP_US;
+uint32_t const LOOP_US = 50;
+uint16_t const LOOP_COUNTER_START = BLINK_US / LOOP_US;
 
-// --- Global Variables -------------------------------------------------------
+// --- Global Variables --------------------------------------------------------
 // Command that is currently executed.
 byte cmdState = CMD_NONE;
-// Interrupt numbers, computed in setup()
-byte intr_num_1_1; // Plug 1 
-byte intr_num_1_2;
-byte intr_num_2_1; // Plug 1
-byte intr_num_2_2;
-// Fast counters for the interrupt routines
-byte volatile intr_counter_1_1 = 0; // Plug 1
+
+// Interrupt numbers, computed in setup().
+byte intr_num_1_1; // Plug 1, Pin 1
+byte intr_num_1_2; // Plug 1, Pin 2
+byte intr_num_2_1; // Plug 2, Pin 1
+byte intr_num_2_2; // Plug 2, Pin 2
+// Fast counters for the interrupt routines.
+byte volatile intr_counter_1_1 = 0;
 byte volatile intr_counter_1_2 = 0;
-byte volatile intr_counter_2_1 = 0; // Plug 2
+byte volatile intr_counter_2_1 = 0;
 byte volatile intr_counter_2_2 = 0;
-// The main counters of the odometer
-long counter_1_1 = 0; // Plug 1
-long counter_1_2 = 0;
-long counter_2_1 = 0; // Plug 2
-long counter_2_2 = 0;
+// The main counters of the odometer.
+int32_t counter_1_1 = 0;
+int32_t counter_1_2 = 0;
+int32_t counter_2_1 = 0;
+int32_t counter_2_2 = 0;
+// Buffers to convert the counters to network order, for I2C.
+int const COUNTER_BUFFER_LENGTH = 4 * sizeof(int32_t);
+byte counter_buffer_1[COUNTER_BUFFER_LENGTH] = {0};
+byte counter_buffer_2[COUNTER_BUFFER_LENGTH] = {0};
+// Pointer to buffer that is currently filled.
+byte * new_buffer = &counter_buffer_1[0];
+// Pointer to buffer that can be written over I2C.
+byte * active_buffer = &counter_buffer_2[0];
+
 // Low frequency activity LED: state and counters.
 bool led_state = LOW;
 unsigned int loop_counter = LOOP_COUNTER_START;
-long old_counter_1_1 = 0; // Plug 1
-long old_counter_1_2 = 0;
-long old_counter_2_1 = 0; // Plug 2
-long old_counter_2_2 = 0;
+int32_t old_counter_1_1 = 0; // Plug 1
+int32_t old_counter_1_2 = 0;
+int32_t old_counter_2_1 = 0; // Plug 2
+int32_t old_counter_2_2 = 0;
 
 // Use the RL-Pins for debug output
 #define DEBUG_RL_PINS true
 
 
 // I2C Functions ---------------------------------------------------------------
+// Function to convert a int32_t into bytes in network order.
+void convert_to_network(int32_t const num, byte * buf) {
+  buf[3] = num & 0xFF;
+  buf[2] = (num >> 8) & 0xFF;
+  buf[1] = (num >> 16) & 0xFF;
+  buf[0] = (num >> 24) & 0xFF;
+}
+/* // Alternative algorithm int32_t -> int32_t 
+// #define htonl(x) ( ((x)<<24 & 0xFF000000UL) | \
+//                    ((x)<< 8 & 0x00FF0000UL) | \
+//                    ((x)>> 8 & 0x0000FF00UL) | \
+//                    ((x)>>24 & 0x000000FFUL) )
+*/
+
+
 // Function that executes whenever data is received from master.
 // This function is registered as an event, see `setup()`.
 void receiveEvent(int _) {
@@ -113,6 +138,7 @@ void receiveEvent(int _) {
         //Serial.print("Reset. Receive new value: ");
         //Serial.println(new_counter, DEC);
 
+        // If the master sent more bytes, this is an error.
         if (Wire.available())
           goto i2c_receive_error;
 
@@ -127,7 +153,8 @@ void receiveEvent(int _) {
       {
         //Serial.print("Error! Receive: ");
         while (0 < Wire.available()) {
-          byte errByte = Wire.read();
+          Wire.read();
+          // byte errByte = Wire.read();
           //Serial.print(errByte, HEX);
           //Serial.print(", ");
         }
@@ -156,28 +183,8 @@ void requestEvent() {
 
     // Command: Send the counter values
     case CMD_GET_COUNT:
-      //Serial.print("Send counter values. 1: ");
-      //Serial.println(enc_1.read(), DEC);
-      byte buf[4]; // long is 4 bytes
-      //*(long *)buf = enc_1.read();
-      // TODO: No copying, make `buf` only a pointer to `newPosition`.
-      *(long *)buf = counter_1_1;
-      // Write the bytes in network order
-      Wire.write(buf[3]);
-      Wire.write(buf[2]);
-      Wire.write(buf[1]);
-      Wire.write(buf[0]);
- 
-      //Serial.print(", 2: ");
-      //Serial.println(enc_2.read(), DEC);
-      //*(long *)buf = enc_2.read();
-      // TODO: No copying, make `buf` only a pointer to `newPosition`.
-      *(long *)buf = counter_1_2;
-      // Write the bytes in network order
-      Wire.write(buf[3]);
-      Wire.write(buf[2]);
-      Wire.write(buf[1]);
-      Wire.write(buf[0]);
+      //Serial.print("Send counter values.");
+      Wire.write(active_buffer, COUNTER_BUFFER_LENGTH);
  
       // The command is finished, reset the register state
       cmdState = CMD_NONE;
@@ -276,8 +283,7 @@ void loop()
     digitalWrite(PLUG_1_RL_PIN, true);
   #endif
 
-  // Add the small interupt counters to the main counters. ---
-  // noInterrupts();
+  // Compute the main counters -----------------------------
   disablePinChangeInterrupt(intr_num_1_1);
   counter_1_1 += intr_counter_1_1; 
   intr_counter_1_1 = 0;
@@ -294,9 +300,21 @@ void loop()
   counter_2_2 += intr_counter_2_2; 
   intr_counter_2_2 = 0;
   enablePinChangeInterrupt(intr_num_2_2);
-  // interrupts();
 
-  // Low frequency activity LED --------
+  // Fill buffer that can be sent over I2c ---------------
+  // new_buffer = &counter_buffer_1[0];
+  convert_to_network(counter_1_1, &new_buffer[0]);
+  convert_to_network(counter_1_2, &new_buffer[4]);
+  convert_to_network(counter_2_1, &new_buffer[8]);
+  convert_to_network(counter_2_2, &new_buffer[12]);
+  // swap the buffers
+  byte * temp_ptr = new_buffer;
+  new_buffer = active_buffer;
+  noInterrupts();
+  active_buffer = temp_ptr;
+  interrupts();
+
+  // Low frequency activity LED ----------------------------
   // Decrement counter for LED.
   --loop_counter;
   if (loop_counter == 0)
