@@ -38,11 +38,8 @@ byte const CMD_RESET = 0x0C;
 byte const CMD_GET_COUNT = 0x10;
 
 // --- Constants for low frequency activity LED --------------------------------
-// Time between checks for activity, in microseconds. Also blink frequency / 2.
-uint32_t const BLINK_US = 250000L;
-// Estimated average duration of the main loop in microseconds.
-uint32_t const LOOP_US = 50;
-uint16_t const LOOP_COUNTER_START = BLINK_US / LOOP_US;
+// Duration of one blink of the LED. Also blink frequency / 2.
+unsigned long const ACTIVITY_BLINK_MILLIS = 250;
 
 // --- Global Variables --------------------------------------------------------
 // Command that is currently executed.
@@ -74,7 +71,7 @@ byte * active_buffer = &counter_buffer_2[0];
 
 // Low frequency activity LED: state and counters.
 bool led_state = LOW;
-unsigned int loop_counter = LOOP_COUNTER_START;
+unsigned long last_activity_blink = 0;
 int32_t old_counter_1_1 = 0; // Plug 1
 int32_t old_counter_1_2 = 0;
 int32_t old_counter_2_1 = 0; // Plug 2
@@ -315,13 +312,13 @@ void loop()
   interrupts();
 
   // Low frequency activity LED ----------------------------
-  // Decrement counter for LED.
-  --loop_counter;
-  if (loop_counter == 0)
+  unsigned long current_millis = millis();
+  // Blink the LED, if enough time has elapsed ...
+  if (current_millis - last_activity_blink > ACTIVITY_BLINK_MILLIS)
   {
-    loop_counter = LOOP_COUNTER_START;
+    last_activity_blink = current_millis;
 
-    // Blink the LED, if one of the counters has changed.
+    // (Blink the LED) and if one of the counters has changed.
     if (  (counter_1_1 != old_counter_1_1) 
        or (counter_1_2 != old_counter_1_2) 
        or (counter_2_1 != old_counter_2_1) 
@@ -345,5 +342,6 @@ void loop()
 
   #if DEBUG_RL_PINS
     digitalWrite(PLUG_1_RL_PIN, false);
+    // delay(1);
   #endif
 }
