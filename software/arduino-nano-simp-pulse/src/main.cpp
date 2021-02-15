@@ -7,6 +7,10 @@
 #include "PinChangeInterrupt.h"
 #include <Wire.h>
 
+
+// Use the RL-Pins for debug output
+#define DEBUG_RL_PINS false
+
 // --- Pulse Input Constants ---------------------------------------------------
 // Pins with "Pin Interrupts" on Arduino Nano: D2, D3
 // This program however uses "Pin Change Interrupts" which work on many pins,
@@ -32,10 +36,13 @@ byte const I2C_ADDR_PIN_2 = 12;
 byte const CMD_NONE = 0;
 // Identifies the device, sends 6 bytes over I2C.
 byte const CMD_WHOAMI = 0x01;
-// Reset all counters to a certain value, reads 1 long.
+// Reset all counters to a certain value, reads 1 int32_t.
 byte const CMD_RESET = 0x0C;
 // Send the counter values, sends 4 int32_t over I2C.
 byte const CMD_GET_COUNT = 0x10;
+
+// Response string for CMD_WHOAMI
+byte const WHOAMI_RESP[] = {"odsp01"};
 
 // --- Constants for low frequency activity LED --------------------------------
 // Duration of one blink of the LED. Also blink frequency / 2.
@@ -76,9 +83,6 @@ int32_t old_counter_1_1 = 0; // Plug 1
 int32_t old_counter_1_2 = 0;
 int32_t old_counter_2_1 = 0; // Plug 2
 int32_t old_counter_2_2 = 0;
-
-// Use the RL-Pins for debug output
-#define DEBUG_RL_PINS true
 
 
 // I2C Functions ---------------------------------------------------------------
@@ -173,7 +177,7 @@ void requestEvent() {
     // Command: send the identification code
     case CMD_WHOAMI:
       //Serial.println("Who am I.");
-      Wire.write("odsp01", 6);
+      Wire.write(WHOAMI_RESP, sizeof(WHOAMI_RESP));
       // The command is finished, reset the register state
       cmdState = CMD_NONE;
       break;
