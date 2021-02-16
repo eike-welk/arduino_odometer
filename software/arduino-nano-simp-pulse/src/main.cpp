@@ -2,7 +2,11 @@
 //              I2C Quadrature Encoder for Arduino Nano
 // ============================================================================
 
-// This program is an I2C device, that counts pulses from 2 quadrature encoders.
+// This program is an I2C device, that counts pulses from four (Hall) sensors.
+//
+// The Arduino Nano has only two Pins with "Pin Interrupts": D2, D3.
+// This program therefore uses "Pin Change Interrupts" which work on all pins,
+// but are more complicated and slower.
 
 #include "PinChangeInterrupt.h"
 #include <Wire.h>
@@ -12,14 +16,12 @@
 #define DEBUG_RL_PINS true
 
 // --- Pulse Input Constants ---------------------------------------------------
-// Pins with "Pin Interrupts" on Arduino Nano: D2, D3
-// This program however uses "Pin Change Interrupts" which work on many pins,
-// but are more complicated and slower.
+// Pulse counter pins: There are two plugs with two inputs each.
 byte const PLUG_1_PIN_1 = 2;
 byte const PLUG_1_PIN_2 = 4;
 byte const PLUG_2_PIN_1 = 3;
 byte const PLUG_2_PIN_2 = 5;
-// Pins for jumpers to swap left and right wheels on each plug.
+// RL-Pins: Pins for jumpers to swap left and right side on each plug.
 byte const PLUG_1_RL_PIN = 6;
 byte const PLUG_2_RL_PIN = 7;
 
