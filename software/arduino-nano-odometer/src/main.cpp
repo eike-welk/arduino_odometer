@@ -79,6 +79,7 @@ void receiveEvent(int _) {
 
       // Command: Reset the counters to a specified value.
       case REG_RESET:
+      {
         byte buf[4]; // long is 4 bytes
         buf[3] = Wire.read();
         buf[2] = Wire.read();
@@ -94,12 +95,14 @@ void receiveEvent(int _) {
         // The command is finished, reset the register state
         cmdReg = REG_NONE;
         break;
-
+      }
       // Error: Read all bytes in this transaction
       default:
+      {
         //Serial.print("Error! Receive: ");
         while (0 < Wire.available()) {
-          byte errByte = Wire.read();
+          Wire.read();
+          // byte errByte = Wire.read();
           //Serial.print(errByte, HEX);
           //Serial.print(", ");
         }
@@ -108,6 +111,7 @@ void receiveEvent(int _) {
         // Reset the register state, wait for new regiser/command
         cmdReg = REG_NONE;
         break;
+      }
     }
   }
 }
