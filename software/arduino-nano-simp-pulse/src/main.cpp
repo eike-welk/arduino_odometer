@@ -8,8 +8,8 @@
 #include <Wire.h>
 
 
-// Use the RL-Pins for debug output
-#define DEBUG_RL_PINS false
+// Use the RL-Pins for debug and test output
+#define DEBUG_RL_PINS true
 
 // --- Pulse Input Constants ---------------------------------------------------
 // Pins with "Pin Interrupts" on Arduino Nano: D2, D3
@@ -104,6 +104,10 @@ void convert_to_network(int32_t const num, byte * buf) {
 // Function that executes whenever data is received from master.
 // This function is registered as an event, see `setup()`.
 void receiveEvent(int _) {
+  #if DEBUG_RL_PINS
+    digitalWrite(PLUG_2_RL_PIN, true);
+  #endif
+
   while (Wire.available() > 0) {
     switch (cmdState) {
       // If the register is not set, the current byte is
@@ -167,12 +171,20 @@ void receiveEvent(int _) {
       }
     }
   }
+
+  #if DEBUG_RL_PINS
+    digitalWrite(PLUG_2_RL_PIN, false);
+  #endif
 }
 
 
 // Function that executes whenever data is requested by master
 // this function is registered as an event, see setup()
 void requestEvent() {
+  #if DEBUG_RL_PINS
+    digitalWrite(PLUG_2_RL_PIN, true);
+  #endif
+
   switch (cmdState) {
     // Command: send the identification code
     case CMD_WHOAMI:
@@ -199,6 +211,10 @@ void requestEvent() {
       cmdState = CMD_NONE;
       break;
   }
+
+  #if DEBUG_RL_PINS
+    digitalWrite(PLUG_2_RL_PIN, false);
+  #endif
 }
 
 
@@ -272,6 +288,8 @@ void setup()
   #if DEBUG_RL_PINS
     pinMode(PLUG_1_RL_PIN, OUTPUT);
     pinMode(PLUG_2_RL_PIN, OUTPUT);
+    digitalWrite(PLUG_1_RL_PIN, false);
+    digitalWrite(PLUG_2_RL_PIN, false);
   #endif
 }
 
