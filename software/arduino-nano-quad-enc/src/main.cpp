@@ -36,6 +36,9 @@ byte const REG_RESET = 0x0C;
 // The counters, readable, 2 long
 byte const REG_COUNT = 0x10;
 
+// Response string for CMD_WHOAMI
+byte const WHOAMI_RESP[] = {"odqe01"};
+
 // --- Constants for low frequency activity LED -------------------------------
 // Time between checks for activity, in microseconds. Also blink frequency / 2.
 unsigned long const BLINK_US = 250000L;
@@ -124,7 +127,7 @@ void requestEvent() {
     // Command: send the identification code
     case REG_WHOAMI:
       //Serial.println("Who am I. Send: 0xOd");
-      Wire.write(0x0d);
+      Wire.write(WHOAMI_RESP, sizeof(WHOAMI_RESP));
       // The command is finished, reset the register state
       cmdReg = REG_NONE;
       break;
