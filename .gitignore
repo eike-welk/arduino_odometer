@@ -16,7 +16,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
-#.Python
+.Python
 #build/
 #develop-eggs/
 #dist/
@@ -29,10 +29,10 @@ __pycache__/
 #sdist/
 #var/
 #wheels/
-#*.egg-info/
-#.installed.cfg
-#*.egg
-#MANIFEST
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -76,7 +76,7 @@ instance/
 docs/_build/
 
 # PyBuilder
-target/
+#target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -107,7 +107,7 @@ venv.bak/
 .ropeproject
 
 # mkdocs documentation
-/site
+#/site
 
 # mypy
 .mypy_cache/
