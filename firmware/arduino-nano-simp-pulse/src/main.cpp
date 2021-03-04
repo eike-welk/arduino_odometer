@@ -8,7 +8,7 @@
 // This program therefore uses "Pin Change Interrupts" which work on all pins,
 // but are more complicated and slower.
 
-#include "PinChangeInterrupt.h"
+#include "Arduino.h"
 #include <Wire.h>
 
 
@@ -54,16 +54,11 @@ unsigned long const ACTIVITY_BLINK_MILLIS = 250;
 // Command that is currently executed.
 byte cmdState = CMD_NONE;
 
-// Interrupt numbers, computed in setup().
-byte intr_num_1_1; // Plug 1, Pin 1
-byte intr_num_1_2; // Plug 1, Pin 2
-byte intr_num_2_1; // Plug 2, Pin 1
-byte intr_num_2_2; // Plug 2, Pin 2
-// Fast counters for the interrupt routines.
-byte volatile intr_counter_1_1 = 0;
-byte volatile intr_counter_1_2 = 0;
-byte volatile intr_counter_2_1 = 0;
-byte volatile intr_counter_2_2 = 0;
+// Current pin state
+bool pin_state_1_1 = false;
+bool pin_state_1_2 = false;
+bool pin_state_2_1 = false;
+bool pin_state_2_2 = false;
 // The main counters of the odometer.
 int32_t counter_1_1 = 0;
 int32_t counter_1_2 = 0;
@@ -220,13 +215,6 @@ void requestEvent() {
 }
 
 
-// --- Interrupt routines ------------------------------------------------------
-void count_step_1_1(void) { intr_counter_1_1 ++; }
-void count_step_1_2(void) { intr_counter_1_2 ++; }
-void count_step_2_1(void) { intr_counter_2_1 ++; }
-void count_step_2_2(void) { intr_counter_2_2 ++; }
-
-
 // --- Startup -----------------------------------------------------------------
 // Function that is called once at startup.
 void setup()
@@ -249,34 +237,15 @@ void setup()
   digitalWrite(SCL, LOW);
 
   // Configure counting ----------------
-  // Compute the interrupt number for each pin
-  intr_num_1_1 = digitalPinToPinChangeInterrupt(PLUG_1_PIN_1);
-  intr_num_1_2 = digitalPinToPinChangeInterrupt(PLUG_1_PIN_2);
-  intr_num_2_1 = digitalPinToPinChangeInterrupt(PLUG_2_PIN_1);
-  intr_num_2_2 = digitalPinToPinChangeInterrupt(PLUG_2_PIN_2);
+  pinMode(PLUG_1_PIN_1, INPUT_PULLUP);
+  pinMode(PLUG_1_PIN_2, INPUT_PULLUP);
+  pinMode(PLUG_2_PIN_1, INPUT_PULLUP);
+  pinMode(PLUG_2_PIN_2, INPUT_PULLUP);
   // Right - Left exchange jumpers 
   // The RL jumpers connect the pins to ground.
   pinMode(PLUG_1_RL_PIN, INPUT_PULLUP);
   pinMode(PLUG_2_RL_PIN, INPUT_PULLUP);
-  // Swap interupt numbers if RL jumper is set.
-  byte temp_int;
-  if (digitalRead(PLUG_1_RL_PIN) == LOW)
-  {
-    temp_int = intr_num_1_1;
-    intr_num_1_1 = intr_num_1_2;
-    intr_num_1_2 = temp_int;
-  }
-  if (digitalRead(PLUG_2_RL_PIN) == LOW)
-  {
-    temp_int = intr_num_2_1;
-    intr_num_2_1 = intr_num_2_2;
-    intr_num_2_2 = temp_int;
-  }
-  // Configure the interupt functions
-  attachPinChangeInterrupt(intr_num_1_1, count_step_1_1, CHANGE);
-  attachPinChangeInterrupt(intr_num_1_2, count_step_1_2, CHANGE);
-  attachPinChangeInterrupt(intr_num_2_1, count_step_2_1, CHANGE);
-  attachPinChangeInterrupt(intr_num_2_2, count_step_2_2, CHANGE);
+  // TODO: Switch the left and right input pins
 
   // Init activity LED -----------------
   pinMode(LED_BUILTIN, OUTPUT);
@@ -305,22 +274,31 @@ void loop()
   #endif
 
   // Compute the main counters -----------------------------
-  disablePinChangeInterrupt(intr_num_1_1);
-  counter_1_1 += intr_counter_1_1; 
-  intr_counter_1_1 = 0;
-  enablePinChangeInterrupt(intr_num_1_1);
-  disablePinChangeInterrupt(intr_num_1_2);
-  counter_1_2 += intr_counter_1_2; 
-  intr_counter_1_2 = 0;
-  enablePinChangeInterrupt(intr_num_1_2);
-  disablePinChangeInterrupt(intr_num_2_1);
-  counter_2_1 += intr_counter_2_1; 
-  intr_counter_2_1 = 0;
-  enablePinChangeInterrupt(intr_num_2_1);
-  disablePinChangeInterrupt(intr_num_2_2);
-  counter_2_2 += intr_counter_2_2; 
-  intr_counter_2_2 = 0;
-  enablePinChangeInterrupt(intr_num_2_2);
+  bool curr_state;
+
+  curr_state = digitalRead(PLUG_1_PIN_1);
+  if (pin_state_1_1 != curr_state) {
+    pin_state_1_1 = curr_state;
+    ++counter_1_1;
+  }
+
+  curr_state = digitalRead(PLUG_1_PIN_2);
+  if (pin_state_1_2 != curr_state) {
+    pin_state_1_2 = curr_state;
+    ++counter_1_2;
+  }
+
+  curr_state = digitalRead(PLUG_2_PIN_1);
+  if (pin_state_2_1 != curr_state) {
+    pin_state_2_1 = curr_state;
+    ++counter_2_1;
+  }
+
+  curr_state = digitalRead(PLUG_2_PIN_2);
+  if (pin_state_2_2 != curr_state) {
+    pin_state_2_2 = curr_state;
+    ++counter_2_2;
+  }
 
   // Fill buffer that can be sent over I2c ---------------
   // new_buffer = &counter_buffer_1[0];
