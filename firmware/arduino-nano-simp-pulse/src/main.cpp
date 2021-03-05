@@ -4,8 +4,19 @@
 
 // This program is an I2C device, that counts pulses from four (Hall) sensors.
 //
-// The Arduino Nano has only two Pins with "Pin Interrupts": D2, D3.
-// This program therefore uses "Pin Change Interrupts" which work on all pins,
+// This program uses polling, to read four pins, which is fast enough and
+// simple.
+//
+// Polling does also not interfere with I2C, which uses interrupts internally.
+// However I2C interferes with polling, because it uses considerable amounts of
+// time and makes the program potentially miss counts.
+//
+// The 16 MHz Arduino Nano was tested with 5kHz pulses on each pin and worked 
+// well. A 8 MHz version might start to miss pulses at 5 kHz, during I2C
+// communication.
+//
+// The Arduino Nano has only two Pins with fast "Pin Interrupts": D2, D3.
+// Additionally the Nano has "Pin Change Interrupts" which work on all pins,
 // but are more complicated and slower.
 
 #include "Arduino.h"
@@ -18,10 +29,11 @@
 // --- Constants ---------------------------------------------------------------
 // --- Pulse Input Constants ------------------------------
 // Pulse counter pins: There are two plugs with two inputs each.
-byte const PLUG_1_PIN_1 = 2;
-byte const PLUG_1_PIN_2 = 4;
-byte const PLUG_2_PIN_1 = 3;
-byte const PLUG_2_PIN_2 = 5;
+// (Pins with "Pin Interrupts": D2, D3.)
+byte const PLUG_1_PIN_1 = 3;
+byte const PLUG_1_PIN_2 = 5;
+byte const PLUG_2_PIN_1 = 2;
+byte const PLUG_2_PIN_2 = 4;
 // RL-Pins: Pins for jumpers to swap left and right side on each plug.
 byte const PLUG_1_RL_PIN = 6;
 byte const PLUG_2_RL_PIN = 7;
