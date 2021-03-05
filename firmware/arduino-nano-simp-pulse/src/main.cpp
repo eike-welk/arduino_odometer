@@ -68,6 +68,12 @@ int32_t counter_2_2 = 0;
 int const COUNTER_BUFFER_LENGTH = 4 * sizeof(int32_t);
 byte counter_buffer_1[COUNTER_BUFFER_LENGTH] = {0};
 byte counter_buffer_2[COUNTER_BUFFER_LENGTH] = {0};
+// Indexes into the buffer for each counter.
+// They are not constants because they can be swapped during initialization.
+int buf_index_1_1 = 0 * sizeof(int32_t);
+int buf_index_1_2 = 1 * sizeof(int32_t);
+int buf_index_2_1 = 2 * sizeof(int32_t);
+int buf_index_2_2 = 3 * sizeof(int32_t);
 // Pointer to buffer that is currently filled.
 byte * new_buffer = &counter_buffer_1[0];
 // Pointer to buffer that can be written over I2C.
@@ -245,7 +251,18 @@ void setup()
   // The RL jumpers connect the pins to ground.
   pinMode(PLUG_1_RL_PIN, INPUT_PULLUP);
   pinMode(PLUG_2_RL_PIN, INPUT_PULLUP);
-  // TODO: Switch the left and right input pins
+  // Swap the positions of the left and right counters in the I2C buffer.
+  int temp_index;
+  if (digitalRead(PLUG_1_RL_PIN) == LOW) { 
+    temp_index = buf_index_1_1;
+    buf_index_1_1 = buf_index_1_2;
+    buf_index_1_2 = temp_index;
+  }
+  if (digitalRead(PLUG_2_RL_PIN) == LOW) { 
+    temp_index = buf_index_2_1;
+    buf_index_2_1 = buf_index_2_2;
+    buf_index_2_2 = temp_index;
+  }
 
   // Init activity LED -----------------
   pinMode(LED_BUILTIN, OUTPUT);
@@ -301,11 +318,10 @@ void loop()
   }
 
   // Fill buffer that can be sent over I2c ---------------
-  // new_buffer = &counter_buffer_1[0];
-  convert_to_network(counter_1_1, &new_buffer[0]);
-  convert_to_network(counter_1_2, &new_buffer[4]);
-  convert_to_network(counter_2_1, &new_buffer[8]);
-  convert_to_network(counter_2_2, &new_buffer[12]);
+  convert_to_network(counter_1_1, &new_buffer[buf_index_1_1]);
+  convert_to_network(counter_1_2, &new_buffer[buf_index_1_2]);
+  convert_to_network(counter_2_1, &new_buffer[buf_index_2_1]);
+  convert_to_network(counter_2_2, &new_buffer[buf_index_2_2]);
   // swap the buffers
   byte * temp_ptr = new_buffer;
   new_buffer = active_buffer;
