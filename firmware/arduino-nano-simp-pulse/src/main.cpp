@@ -13,9 +13,10 @@
 
 
 // Use the RL-Pins for debug and test output
-#define DEBUG_RL_PINS true
+#define DEBUG_RL_PINS false
 
-// --- Pulse Input Constants ---------------------------------------------------
+// --- Constants ---------------------------------------------------------------
+// --- Pulse Input Constants ------------------------------
 // Pulse counter pins: There are two plugs with two inputs each.
 byte const PLUG_1_PIN_1 = 2;
 byte const PLUG_1_PIN_2 = 4;
@@ -25,7 +26,7 @@ byte const PLUG_2_PIN_2 = 5;
 byte const PLUG_1_RL_PIN = 6;
 byte const PLUG_2_RL_PIN = 7;
 
-// --- I2C Constants ----------------------------------------------------------
+// --- I2C Constants --------------------------------------
 // I2C Pins on Arduino Nano:  A4 (SDA) and A5 (SCL)
 // Base address
 byte const I2C_ADDR_BASE = 0x28;
@@ -33,7 +34,7 @@ byte const I2C_ADDR_BASE = 0x28;
 byte const I2C_ADDR_PIN_1 = 11;
 byte const I2C_ADDR_PIN_2 = 12;
 
-// --- Commands that the odometer understands ----------------------------------
+// --- Commands that the odometer understands -------------
 // No command is executing
 byte const CMD_NONE = 0;
 // Identifies the device, sends 6 bytes over I2C.
@@ -46,14 +47,17 @@ byte const CMD_GET_COUNT = 0x10;
 // Response string for CMD_WHOAMI
 byte const WHOAMI_RESP[] = {"odsp01"};
 
-// --- Constants for low frequency activity LED --------------------------------
-// Duration of one blink of the LED. Also blink frequency / 2.
-unsigned long const ACTIVITY_BLINK_MILLIS = 250;
+// --- Low frequency activity LED -------------------------
+// Pause between invocations of the blink algorithm. 
+// One blink cycle is two pauses.
+unsigned long const ACTIVITY_BLINK_MILLIS = 500;
 
 // --- Global Variables --------------------------------------------------------
+// I2C ---------------------------------------------------
 // Command that is currently executed.
 byte cmdState = CMD_NONE;
 
+// Counting -----------------------------------------------
 // Current pin state
 bool pin_state_1_1 = false;
 bool pin_state_1_2 = false;
@@ -79,9 +83,12 @@ byte * new_buffer = &counter_buffer_1[0];
 // Pointer to buffer that can be written over I2C.
 byte * active_buffer = &counter_buffer_2[0];
 
-// Low frequency activity LED: state and counters.
+// Low frequency activity LED -----------------------------
+// LED state
 bool led_state = LOW;
+//  Value of `millis()` at last blink.
 unsigned long last_activity_blink = 0;
+//  Old values of the counters.
 int32_t old_counter_1_1 = 0; // Plug 1
 int32_t old_counter_1_2 = 0;
 int32_t old_counter_2_1 = 0; // Plug 2
@@ -243,10 +250,12 @@ void setup()
   digitalWrite(SCL, LOW);
 
   // Configure counting ----------------
-  pinMode(PLUG_1_PIN_1, INPUT_PULLUP);
-  pinMode(PLUG_1_PIN_2, INPUT_PULLUP);
-  pinMode(PLUG_2_PIN_1, INPUT_PULLUP);
-  pinMode(PLUG_2_PIN_2, INPUT_PULLUP);
+  // The circuit has pullup resistors on these pins,
+  // therefore just mode `INPUT`
+  pinMode(PLUG_1_PIN_1, INPUT);
+  pinMode(PLUG_1_PIN_2, INPUT);
+  pinMode(PLUG_2_PIN_1, INPUT);
+  pinMode(PLUG_2_PIN_2, INPUT);
   // Right - Left exchange jumpers 
   // The RL jumpers connect the pins to ground.
   pinMode(PLUG_1_RL_PIN, INPUT_PULLUP);
@@ -292,25 +301,23 @@ void loop()
 
   // Compute the main counters -----------------------------
   bool curr_state;
-
+  // Read each pin. If its current state is different than its previous state,
+  // increment the counter.
   curr_state = digitalRead(PLUG_1_PIN_1);
   if (pin_state_1_1 != curr_state) {
     pin_state_1_1 = curr_state;
     ++counter_1_1;
   }
-
   curr_state = digitalRead(PLUG_1_PIN_2);
   if (pin_state_1_2 != curr_state) {
     pin_state_1_2 = curr_state;
     ++counter_1_2;
   }
-
   curr_state = digitalRead(PLUG_2_PIN_1);
   if (pin_state_2_1 != curr_state) {
     pin_state_2_1 = curr_state;
     ++counter_2_1;
   }
-
   curr_state = digitalRead(PLUG_2_PIN_2);
   if (pin_state_2_2 != curr_state) {
     pin_state_2_2 = curr_state;
