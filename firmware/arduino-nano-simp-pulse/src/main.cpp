@@ -4,28 +4,41 @@
 
 // This program is an I2C device, that counts pulses from four (Hall) sensors.
 //
-// The Arduino Nano has only two Pins with "Pin Interrupts": D2, D3.
-// This program therefore uses "Pin Change Interrupts" which work on all pins,
+// This program uses polling, to read four pins, which is fast enough and
+// simple.
+//
+// Polling does also not interfere with I2C, which uses interrupts internally.
+// However I2C interferes with polling, because it uses considerable amounts of
+// time and makes the program potentially miss counts.
+//
+// The 16 MHz Arduino Nano was tested with 5kHz pulses on each pin and worked 
+// well. A 8 MHz version might start to miss pulses at 5 kHz, during I2C
+// communication.
+//
+// The Arduino Nano has only two Pins with fast "Pin Interrupts": D2, D3.
+// Additionally the Nano has "Pin Change Interrupts" which work on all pins,
 // but are more complicated and slower.
 
-#include "PinChangeInterrupt.h"
+#include "Arduino.h"
 #include <Wire.h>
 
 
 // Use the RL-Pins for debug and test output
-#define DEBUG_RL_PINS true
+#define DEBUG_RL_PINS false
 
-// --- Pulse Input Constants ---------------------------------------------------
+// --- Constants ---------------------------------------------------------------
+// --- Pulse Input Constants ------------------------------
 // Pulse counter pins: There are two plugs with two inputs each.
-byte const PLUG_1_PIN_1 = 2;
-byte const PLUG_1_PIN_2 = 4;
-byte const PLUG_2_PIN_1 = 3;
-byte const PLUG_2_PIN_2 = 5;
+// (Pins with "Pin Interrupts": D2, D3.)
+byte const PLUG_1_PIN_1 = 3;
+byte const PLUG_1_PIN_2 = 5;
+byte const PLUG_2_PIN_1 = 2;
+byte const PLUG_2_PIN_2 = 4;
 // RL-Pins: Pins for jumpers to swap left and right side on each plug.
 byte const PLUG_1_RL_PIN = 6;
 byte const PLUG_2_RL_PIN = 7;
 
-// --- I2C Constants ----------------------------------------------------------
+// --- I2C Constants --------------------------------------
 // I2C Pins on Arduino Nano:  A4 (SDA) and A5 (SCL)
 // Base address
 byte const I2C_ADDR_BASE = 0x28;
@@ -33,7 +46,7 @@ byte const I2C_ADDR_BASE = 0x28;
 byte const I2C_ADDR_PIN_1 = 11;
 byte const I2C_ADDR_PIN_2 = 12;
 
-// --- Commands that the odometer understands ----------------------------------
+// --- Commands that the odometer understands -------------
 // No command is executing
 byte const CMD_NONE = 0;
 // Identifies the device, sends 6 bytes over I2C.
@@ -46,24 +59,22 @@ byte const CMD_GET_COUNT = 0x10;
 // Response string for CMD_WHOAMI
 byte const WHOAMI_RESP[] = {"odsp01"};
 
-// --- Constants for low frequency activity LED --------------------------------
-// Duration of one blink of the LED. Also blink frequency / 2.
-unsigned long const ACTIVITY_BLINK_MILLIS = 250;
+// --- Low frequency activity LED -------------------------
+// Pause between invocations of the blink algorithm. 
+// One blink cycle is two pauses.
+unsigned long const ACTIVITY_BLINK_MILLIS = 500;
 
 // --- Global Variables --------------------------------------------------------
+// I2C ---------------------------------------------------
 // Command that is currently executed.
 byte cmdState = CMD_NONE;
 
-// Interrupt numbers, computed in setup().
-byte intr_num_1_1; // Plug 1, Pin 1
-byte intr_num_1_2; // Plug 1, Pin 2
-byte intr_num_2_1; // Plug 2, Pin 1
-byte intr_num_2_2; // Plug 2, Pin 2
-// Fast counters for the interrupt routines.
-byte volatile intr_counter_1_1 = 0;
-byte volatile intr_counter_1_2 = 0;
-byte volatile intr_counter_2_1 = 0;
-byte volatile intr_counter_2_2 = 0;
+// Counting -----------------------------------------------
+// Current pin state
+bool pin_state_1_1 = false;
+bool pin_state_1_2 = false;
+bool pin_state_2_1 = false;
+bool pin_state_2_2 = false;
 // The main counters of the odometer.
 int32_t counter_1_1 = 0;
 int32_t counter_1_2 = 0;
@@ -73,14 +84,23 @@ int32_t counter_2_2 = 0;
 int const COUNTER_BUFFER_LENGTH = 4 * sizeof(int32_t);
 byte counter_buffer_1[COUNTER_BUFFER_LENGTH] = {0};
 byte counter_buffer_2[COUNTER_BUFFER_LENGTH] = {0};
+// Indexes into the buffer for each counter.
+// They are not constants because they can be swapped during initialization.
+int buf_index_1_1 = 0 * sizeof(int32_t);
+int buf_index_1_2 = 1 * sizeof(int32_t);
+int buf_index_2_1 = 2 * sizeof(int32_t);
+int buf_index_2_2 = 3 * sizeof(int32_t);
 // Pointer to buffer that is currently filled.
 byte * new_buffer = &counter_buffer_1[0];
 // Pointer to buffer that can be written over I2C.
 byte * active_buffer = &counter_buffer_2[0];
 
-// Low frequency activity LED: state and counters.
+// Low frequency activity LED -----------------------------
+// LED state
 bool led_state = LOW;
+//  Value of `millis()` at last blink.
 unsigned long last_activity_blink = 0;
+//  Old values of the counters.
 int32_t old_counter_1_1 = 0; // Plug 1
 int32_t old_counter_1_2 = 0;
 int32_t old_counter_2_1 = 0; // Plug 2
@@ -220,13 +240,6 @@ void requestEvent() {
 }
 
 
-// --- Interrupt routines ------------------------------------------------------
-void count_step_1_1(void) { intr_counter_1_1 ++; }
-void count_step_1_2(void) { intr_counter_1_2 ++; }
-void count_step_2_1(void) { intr_counter_2_1 ++; }
-void count_step_2_2(void) { intr_counter_2_2 ++; }
-
-
 // --- Startup -----------------------------------------------------------------
 // Function that is called once at startup.
 void setup()
@@ -249,34 +262,28 @@ void setup()
   digitalWrite(SCL, LOW);
 
   // Configure counting ----------------
-  // Compute the interrupt number for each pin
-  intr_num_1_1 = digitalPinToPinChangeInterrupt(PLUG_1_PIN_1);
-  intr_num_1_2 = digitalPinToPinChangeInterrupt(PLUG_1_PIN_2);
-  intr_num_2_1 = digitalPinToPinChangeInterrupt(PLUG_2_PIN_1);
-  intr_num_2_2 = digitalPinToPinChangeInterrupt(PLUG_2_PIN_2);
+  // The circuit has pullup resistors on these pins,
+  // therefore just mode `INPUT`
+  pinMode(PLUG_1_PIN_1, INPUT);
+  pinMode(PLUG_1_PIN_2, INPUT);
+  pinMode(PLUG_2_PIN_1, INPUT);
+  pinMode(PLUG_2_PIN_2, INPUT);
   // Right - Left exchange jumpers 
   // The RL jumpers connect the pins to ground.
   pinMode(PLUG_1_RL_PIN, INPUT_PULLUP);
   pinMode(PLUG_2_RL_PIN, INPUT_PULLUP);
-  // Swap interupt numbers if RL jumper is set.
-  byte temp_int;
-  if (digitalRead(PLUG_1_RL_PIN) == LOW)
-  {
-    temp_int = intr_num_1_1;
-    intr_num_1_1 = intr_num_1_2;
-    intr_num_1_2 = temp_int;
+  // Swap the positions of the left and right counters in the I2C buffer.
+  int temp_index;
+  if (digitalRead(PLUG_1_RL_PIN) == LOW) { 
+    temp_index = buf_index_1_1;
+    buf_index_1_1 = buf_index_1_2;
+    buf_index_1_2 = temp_index;
   }
-  if (digitalRead(PLUG_2_RL_PIN) == LOW)
-  {
-    temp_int = intr_num_2_1;
-    intr_num_2_1 = intr_num_2_2;
-    intr_num_2_2 = temp_int;
+  if (digitalRead(PLUG_2_RL_PIN) == LOW) { 
+    temp_index = buf_index_2_1;
+    buf_index_2_1 = buf_index_2_2;
+    buf_index_2_2 = temp_index;
   }
-  // Configure the interupt functions
-  attachPinChangeInterrupt(intr_num_1_1, count_step_1_1, CHANGE);
-  attachPinChangeInterrupt(intr_num_1_2, count_step_1_2, CHANGE);
-  attachPinChangeInterrupt(intr_num_2_1, count_step_2_1, CHANGE);
-  attachPinChangeInterrupt(intr_num_2_2, count_step_2_2, CHANGE);
 
   // Init activity LED -----------------
   pinMode(LED_BUILTIN, OUTPUT);
@@ -305,29 +312,35 @@ void loop()
   #endif
 
   // Compute the main counters -----------------------------
-  disablePinChangeInterrupt(intr_num_1_1);
-  counter_1_1 += intr_counter_1_1; 
-  intr_counter_1_1 = 0;
-  enablePinChangeInterrupt(intr_num_1_1);
-  disablePinChangeInterrupt(intr_num_1_2);
-  counter_1_2 += intr_counter_1_2; 
-  intr_counter_1_2 = 0;
-  enablePinChangeInterrupt(intr_num_1_2);
-  disablePinChangeInterrupt(intr_num_2_1);
-  counter_2_1 += intr_counter_2_1; 
-  intr_counter_2_1 = 0;
-  enablePinChangeInterrupt(intr_num_2_1);
-  disablePinChangeInterrupt(intr_num_2_2);
-  counter_2_2 += intr_counter_2_2; 
-  intr_counter_2_2 = 0;
-  enablePinChangeInterrupt(intr_num_2_2);
+  bool curr_state;
+  // Read each pin. If its current state is different than its previous state,
+  // increment the counter.
+  curr_state = digitalRead(PLUG_1_PIN_1);
+  if (pin_state_1_1 != curr_state) {
+    pin_state_1_1 = curr_state;
+    ++counter_1_1;
+  }
+  curr_state = digitalRead(PLUG_1_PIN_2);
+  if (pin_state_1_2 != curr_state) {
+    pin_state_1_2 = curr_state;
+    ++counter_1_2;
+  }
+  curr_state = digitalRead(PLUG_2_PIN_1);
+  if (pin_state_2_1 != curr_state) {
+    pin_state_2_1 = curr_state;
+    ++counter_2_1;
+  }
+  curr_state = digitalRead(PLUG_2_PIN_2);
+  if (pin_state_2_2 != curr_state) {
+    pin_state_2_2 = curr_state;
+    ++counter_2_2;
+  }
 
   // Fill buffer that can be sent over I2c ---------------
-  // new_buffer = &counter_buffer_1[0];
-  convert_to_network(counter_1_1, &new_buffer[0]);
-  convert_to_network(counter_1_2, &new_buffer[4]);
-  convert_to_network(counter_2_1, &new_buffer[8]);
-  convert_to_network(counter_2_2, &new_buffer[12]);
+  convert_to_network(counter_1_1, &new_buffer[buf_index_1_1]);
+  convert_to_network(counter_1_2, &new_buffer[buf_index_1_2]);
+  convert_to_network(counter_2_1, &new_buffer[buf_index_2_1]);
+  convert_to_network(counter_2_2, &new_buffer[buf_index_2_2]);
   // swap the buffers
   byte * temp_ptr = new_buffer;
   new_buffer = active_buffer;

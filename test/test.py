@@ -1,4 +1,9 @@
-# Test the Arduino I2C device
+################################################################################
+# Test Donkeycar Odometer from Raspberry PI
+################################################################################
+#
+# Talk to the odometer over I2C and try all commands/registers
+# Read the counters 20 times per second for ever
 
 import struct
 import time
@@ -31,13 +36,13 @@ def write_reg_reset(val):
     i2c.write_i2c_block_data(address, reg_reset, buf)
 
 read_reg_who()
-#time.sleep(0.9)
+#time.sleep(0.1)
 write_reg_reset(0)
 #time.sleep(0.1)
 
 while True:
     read_reg_counters()
-    time.sleep(0.05)
+    time.sleep(0.049)
     #time.sleep(0.01)
 
 time.sleep(0.1)
