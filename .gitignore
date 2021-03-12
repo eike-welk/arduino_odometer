@@ -2,7 +2,7 @@
 *.stl
 
 # Fritzing export for production directory
-electronics/arduino-nano/export/
+#electronics/arduino-nano/export/
 
 # Vim swap files
 *.swp
