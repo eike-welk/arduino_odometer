@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "software/arduino-nano-simp-pulse"
+		},
+		{
+			"path": "software/arduino-nano-quad-enc"
+		}
+	],
+	"settings": {}
+}
