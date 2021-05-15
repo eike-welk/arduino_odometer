@@ -1,0 +1,23 @@
+G04 --- HEADER BEGIN --- *
+%TF.GenerationSoftware,LibrePCB,LibrePCB,0.1.5*%
+%TF.CreationDate,2021-05-15T07:17:11*%
+%TF.ProjectId,Odometer Arduino Pro Mini - default,13410d80-bfca-4f75-a670-da1b2444d1b2,v1*%
+%TF.Part,Single*%
+%FSLAX66Y66*%
+%MOMM*%
+G01*
+G74*
+G04 --- HEADER END --- *
+G04 --- APERTURE LIST BEGIN --- *
+%ADD10C,0.001*%
+G04 --- APERTURE LIST END --- *
+G04 --- BOARD BEGIN --- *
+D10*
+X0Y0D02*
+X29845000Y0D01*
+X29845000Y48260000D01*
+X0Y48260000D01*
+X0Y0D01*
+G04 --- BOARD END --- *
+%TF.MD5,d7c69cbc7a542a426edb968689fd4872*%
+M02*

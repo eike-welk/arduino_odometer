@@ -1,0 +1,11 @@
+Quantity,Designators,Value,Device,Package
+1,J-A1,"Address, white",Generic Pin Header 2.54mm 1x02 ⌀0.9mm,Pin Header 2.54mm 1x02 ⌀0.9mm
+1,J-A2,white,Generic Pin Header 2.54mm 1x02 ⌀0.9mm,Pin Header 2.54mm 1x02 ⌀0.9mm
+1,J-HB,"Hall sensor, GND, black",Generic Pin Header 2.54mm 1x02 ⌀0.9mm,Pin Header 2.54mm 1x02 ⌀0.9mm
+1,J-HR,"Hall sensor, 5V, red",Generic Pin Header 2.54mm 1x02 ⌀0.9mm,Pin Header 2.54mm 1x02 ⌀0.9mm
+1,J-HW,"Hall sensor, no interrupt, white",Generic Pin Header 2.54mm 1x02 ⌀0.9mm,Pin Header 2.54mm 1x02 ⌀0.9mm
+1,J-HY,"Hall sensor, interrupt, yellow",Generic Pin Header 2.54mm 1x02 ⌀0.9mm,Pin Header 2.54mm 1x02 ⌀0.9mm
+1,J-I2C,white,Generic Pin Header 2.54mm 1x04 ⌀0.9mm,Pin Header 2.54mm 1x04 ⌀0.9mm
+1,J-RL1,"Left-right, yellow",Generic Pin Header 2.54mm 1x02 ⌀0.9mm,Pin Header 2.54mm 1x02 ⌀0.9mm
+1,J-RL2,yellow,Generic Pin Header 2.54mm 1x02 ⌀0.9mm,Pin Header 2.54mm 1x02 ⌀0.9mm
+1,U1,Arduino  Pro Mini 3.3 V (8 MHz),Arduino Pro Mini,Arduino Pro Mini
