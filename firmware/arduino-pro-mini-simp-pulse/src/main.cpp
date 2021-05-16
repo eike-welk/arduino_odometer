@@ -30,21 +30,21 @@
 // --- Pulse Input Constants ------------------------------
 // Pulse counter pins: There are two plugs with two inputs each.
 // (Pins with "Pin Interrupts": D2, D3.)
-byte const PLUG_1_PIN_1 = 3;
-byte const PLUG_1_PIN_2 = 5;
-byte const PLUG_2_PIN_1 = 2;
-byte const PLUG_2_PIN_2 = 4;
+byte const PLUG_1_PIN_1 = 2;
+byte const PLUG_1_PIN_2 = 4;
+byte const PLUG_2_PIN_1 = 3;
+byte const PLUG_2_PIN_2 = 5;
 // RL-Pins: Pins for jumpers to swap left and right side on each plug.
-byte const PLUG_1_RL_PIN = 6;
-byte const PLUG_2_RL_PIN = 7;
+byte const PLUG_1_RL_PIN = 11;
+byte const PLUG_2_RL_PIN = 10;
 
 // --- I2C Constants --------------------------------------
 // I2C Pins on Arduino Nano:  A4 (SDA) and A5 (SCL)
 // Base address
 byte const I2C_ADDR_BASE = 0x28;
 // Lowest address bits can be chosen with jumpers
-byte const I2C_ADDR_PIN_1 = 11;
-byte const I2C_ADDR_PIN_2 = 12;
+byte const I2C_ADDR_PIN_1 = 12;
+byte const I2C_ADDR_PIN_2 = 13;
 
 // --- Commands that the odometer understands -------------
 // No command is executing
