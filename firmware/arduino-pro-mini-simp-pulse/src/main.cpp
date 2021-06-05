@@ -19,6 +19,10 @@
 // Additionally the Nano has "Pin Change Interrupts" which work on all pins,
 // but are more complicated and slower.
 
+// Configure spell checker extension for VSCode: "Code Spell Checker"
+// spell-checker: ignore odsp
+// spell-checker: ignore println
+
 #include "Arduino.h"
 #include <Wire.h>
 
