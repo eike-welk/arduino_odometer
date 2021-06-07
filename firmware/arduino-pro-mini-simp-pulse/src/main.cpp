@@ -260,10 +260,6 @@ void setup()
   Wire.begin(i2c_address);      // join i2c bus as slave
   Wire.onReceive(receiveEvent); // register event
   Wire.onRequest(requestEvent); // register event
-  // Switch the pullup resistors off for the I2C pins.
-  // As this is a 5V board, and RaspberryPi is 3.3 V.
-  digitalWrite(SDA, LOW);
-  digitalWrite(SCL, LOW);
 
   // Configure counting ----------------
   // Pulse input pins
